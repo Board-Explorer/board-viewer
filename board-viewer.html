@@ -10,10 +10,25 @@
 <script src="svg-injector.js"></script>
 
 <!--
-`board-viewer`
-Interactive hardware board viewer
+`<board-viewer>` Provides an interactive hardware board viewer.
 
-@demo demo/index.html
+Example:
+
+    <board-viewer
+      disable-drag
+      disable-zoom
+      filters="I2C,JTAG,J6"
+      board="quark_mcu_dev_kit_d2000">
+    </board-viewer>
+
+The above will load the `quark_mcu_dev_kit_d2000` out of the `boards/`,
+and start by highlighting the graphic components with keywords or ids matching
+`I2C`, `JTAG`, or `J6`.
+
+See [board-explorer](https://github.com/board-explorer/board-explorer) for
+information on creating board files.
+
+@demo demo/index.html Simple demo showing a statically loaded view.
 -->
 
 <dom-module id='board-viewer'>
@@ -62,9 +77,9 @@ Interactive hardware board viewer
       position: absolute;
       top: 0px;
       left: 0px;
-      -ms-transform-origin: 50% 50%; /* IE 9 */
-      -webkit-transform-origin: 50% 50%; /* Chrome, Safari, Opera */
-      transform-origin: 50% 50%;
+      -ms-transform-_origin: 50% 50%; /* IE 9 */
+      -webkit-transform-_origin: 50% 50%; /* Chrome, Safari, Opera */
+      transform-_origin: 50% 50%;
     }
 
     #svg {
@@ -165,75 +180,88 @@ Interactive hardware board viewer
 Polymer({
   is: "board-viewer",
   properties: {
+    /** Whether the zoom control is visible. */
     disableZoom: {
       type: Boolean,
       value: true,
       reflectToAttribute: true
     },
+    /** Whether dragging the board is enabled. */
     disableDrag: {
       type: Boolean,
       value: false,
       reflectToAttribute: true
     },
+    /** The board name currently loaded (or loading). This will be loaded
+     * out of the *basePath* directory as *basePath/board* */
     board: {
       type: String,
       notify: true
     },
+    /** The board specified by *board* is loading. */
     loading: {
       type: Boolean,
       value: false,
       notify: true
     },
-    boardData: {
-      type: Array,
-      value: []
-    },
-    boardElements: {
-      type: Array,
-      value: []
-    },
-    svg: {
-      type: Object
-    },
+    /** The zoom level of the board. Minimum: 0.5, Maximum: 1.5 */
     zoom: {
       type: Number,
-      value: 0
+      value: 0,
+      notify: true,
+      observer: "_onZoomChanged"
     },
+    /** Default scale for the board. 1.0 fills the viewport (while maintaining
+     * aspect ratio.) */
     defaultScale: {
       type: Number,
       value: 0.8
     },
-    translation: {
+    /** Base path for loading meta-data files */
+    basePath: {
+      type: String,
+      value: ""
+    },
+    /** Comma separated list of refdes, keywords, and groups to show.
+     * For example: "JTAG,I2C,J6" */
+    filters: {
+      type: String
+    },
+    _translation: {
       type: Object,
       value: {
         x: 0,
         y: 0
       }
     },
-    filters: {
-      type: String
-    },
     _filters: { /* Internal copy of filters */
       type: Array,
       value: []
     },
-    origin: { /* Used for drag operations */
+    _origin: { /* Used for drag operations */
       type: Object,
       value: { x: 0, y: 0 }
     },
-    basePath: { /* Base path for loading meta-data files */
-      type: String,
-      value: ""
+    _boardData: {
+      type: Array,
+      value: []
+    },
+    _boardElements: {
+      type: Array,
+      value: []
+    },
+    _svg: {
+      type: Object
     }
   },
 
   observers: [
-    "onDisableDrag(disableDrag)",
-    "onBoardChanged(board)",
-    "onBoardZoom(svg, zoom)",
-    "mapSvgToBoardData(svg, boardData)",
-    "onBoardLoaded(svg, board, boardData)",
-    "onFiltersChanged(filters)"
+    "_onDisableDrag(disableDrag)",
+    "_onBoardChanged(board)",
+    "_onBoardZoom(_svg, zoom)",
+    "_mapSvgTo_boardData(_svg, _boardData)",
+    "_onBoardLoaded(_svg, board, _boardData)",
+    "_onFiltersChanged(filters)"
   ],
 
   behaviors: [
@@ -247,7 +275,7 @@ Polymer({
     "board.error": "_boardLoadError"
   },
 
-  onFiltersChanged: function(filters) {
+  _onFiltersChanged: function(filters) {
     if (typeof filters === "string") {
       filters = filters.split(",");
     }
@@ -263,11 +291,11 @@ Polymer({
     });
   },
 
-  onZoomChanged: function(event) {
-    this.zoom = event.detail.value;
+  _onZoomChanged: function(event) {
+    this.zoom = Math.max(Math.min(event.detail.value, 1.5), 0.5);
   },
 
-  onBoardMove: function(x, y) {
+  _onBoardMove: function(x, y) {
     /* Can get called during initialization before DOM stamped */
     var container = this.$.container;
     if (!container) {
@@ -279,7 +307,7 @@ Polymer({
     Polymer.dom.flush();
   },
 
-  onBoardZoom: function(svg, zoom) {
+  _onBoardZoom: function(svg, zoom) {
     if (!svg) {
       return;
     }
@@ -306,71 +334,75 @@ Polymer({
     style += 'width: ' + bb.width * zoom + 'px;';
     style += 'height: ' + bb.height * zoom + 'px;';
 
-    this.$.svg.style.cssText = style;
+    this.$._svg.style.cssText = style;
     Polymer.dom.flush();
 
     /* Unhide the SVG itself; we hide it when the board is being loaded. We
-    * don't show it until now because the style for the parent (this.$.svg)
+    * don't show it until now because the style for the parent (this.$._svg)
     * would have it in the wrong spot */
-    this.svg.style.width = "100%";
-    this.svg.style.height = "100%";
-    this.svg.style.visibility = 'visible';
+    this._svg.style.width = "100%";
+    this._svg.style.height = "100%";
+    this._svg.style.visibility = 'visible';
 
-    this.calculateSVGElements();
-    this._filters.forEach(this.populateFilter, this);
+    this._calculateSVGElements();
+    this._filters.forEach(this._populateFilter, this);
   },
 
-  calculateSVGElements: function() {
+  _calculateSVGElements: function() {
     var offset = this.getBoundingClientRect();
 
-    this.svgElements.forEach(function(svgItem) {
+    this._svgElements.forEach(function(svgItem) {
       var rect = svgItem.el.getBoundingClientRect();
       svgItem.rect = {
-        top: rect.top + rect.height * 0.5 - this.translation.y - offset.top + 'px',
-        left: rect.left + rect.width * 0.5 - this.translation.x - offset.left + 'px',
+        top: rect.top + rect.height * 0.5 - this._translation.y - offset.top + 'px',
+        left: rect.left + rect.width * 0.5 - this._translation.x - offset.left + 'px',
         width: rect.width + 'px',
         height: rect.height + 'px'
       }
     }, this);
   },
 
-  onDisableDrag: function(disabled) {
+  _onDisableDrag: function(disabled) {
     if (disabled) {
-      this.unlisten(this, 'track', 'onTrack');
+      this.unlisten(this, 'track', '_onTrack');
     } else {
-      this.listen(this, 'track', 'onTrack');
+      this.listen(this, 'track', '_onTrack');
     }
   },
 
-  onTrack: function(event) {
+  _onTrack: function(event) {
     this.tapTarget = null;
     event.preventDefault();
 
     if (event.detail.state == 'start') {
       event.target.classList.add('drag');
       this.$.viewer.classList.add('drag');
-      this.origin = {
-        x: this.translation.x,
-        y: this.translation.y
+      this._origin = {
+        x: this._translation.x,
+        y: this._translation.y
       }
     }
-
-    this.translation.x = this.origin.x + event.detail.dx;
-    this.translation.y = this.origin.y + event.detail.dy;
-    this.onBoardMove(this.translation.x, this.translation.y);
+f
+    this._translation.x = this._origin.x + event.detail.dx;
+    this._translation.y = this._origin.y + event.detail.dy;
+    this._onBoardMove(this._translation.x, this._translation.y);
 
     if (event.detail.state == 'end') {
       Array.prototype.forEach.call(this.querySelectorAll('.drag'),
         function(el) {
         el.classList.remove('drag');
       });
-      this.origin.x = this.translation.x;
-      this.origin.y = this.translation.y;
+      this._origin.x = this._translation.x;
+      this._origin.y = this._translation.y;
     }
   },
 
-  /* Look up the boardData item corresponding to the provided
-   * refdes */
+  /* Look up the item corresponding to the provided
+   * refdes
+   *
+   * @param {String} refdes Reference designator to look up, for example J6Pin4
+   * @returns {Object}
+   */
   findComponent: function(refdes) {
     if (!refdes) {
       return null;
@@ -381,9 +413,9 @@ Polymer({
       component = null;
 
     /* Look up the component first */
-    for (var i = 0; i < this.boardData.length; i++) {
-      if (this.boardData[i].refdes == parts[0]) {
-        component = this.boardData[i];
+    for (var i = 0; i < this._boardData.length; i++) {
+      if (this._boardData[i].refdes == parts[0]) {
+        component = this._boardData[i];
         break;
       }
     }
@@ -410,25 +442,25 @@ Polymer({
     return null;
   },
 
-  onBoardLoaded: function(svg, board, boardData) {
-    if (!svg || !board || !boardData) {
+  _onBoardLoaded: function(svg, board, _boardData) {
+    if (!svg || !board || !_boardData) {
       return;
     }
 
     this.board = board;
   },
 
-  onBoardChanged: function(board) {
+  _onBoardChanged: function(board) {
     this.loading = true;
 
-    this.svg = null;
-    this.boardData = [];
+    this._svg = null;
+    this._boardData = [];
 
     /* Remove all the filters for the current board */
     this.removeFilter();
 
     /* Delete any children of the "svg" */
-    var element = this.$.svg;
+    var element = this.$._svg;
     while (element.firstChild) {
       element.removeChild(element.firstChild);
     }
@@ -458,7 +490,7 @@ Polymer({
 
     /* Do not inject the SVG until after the SVG has completed
      * loading into the main image, otherwise there is a race
-     * condition which can result in the SVG never showing up */
+     * c_onDition which can result in the SVG never showing up */
     image.onload = function() {
       SVGInjector(image, {
         evalScripts: 'once',
@@ -479,28 +511,28 @@ Polymer({
 
           this.zoom = 0;
           this.scale = 1;
-          this.translation.x = this.offsetWidth * 0.5;
-          this.translation.y = this.offsetHeight * 0.5;
+          this._translation.x = this.offsetWidth * 0.5;
+          this._translation.y = this.offsetHeight * 0.5;
 
-          /* Caches the original (unscaled or translated) bounding rectangle
+          /* Caches the _original (unscaled or translated) bounding rectangle
           * for use when constructing new highlight rectangles */
-          this.svgElements = [];
+          this._svgElements = [];
 
           Array.prototype.forEach.call(svg.querySelectorAll('[id^="BV_"]'),
             function(el) {
-            this.svgElements.push({
+            this._svgElements.push({
               refdes: el.id.replace(/^BV_/, ''),
               el: el
             });
           }, this);
 
-          this.$.svg.appendChild(svg);
+          this.$._svg.appendChild(svg);
           Polymer.dom.flush();
           this.updateStyles();
 
-          /* Set this.svg at the end so mapSvgToBoardData doesn't trigger
+          /* Set this._svg at the end so _mapSvgTo_boardData doesn't trigger
            * until the DOM is populated with the SVG */
-          this.svg = svg;
+          this._svg = svg;
         }.bind(this)
       });
     }.bind(this);
@@ -586,7 +618,7 @@ Polymer({
       }
     }
 
-    this.boardData = components;
+    this._boardData = components;
     this.loading = false;
   },
 
@@ -605,6 +637,12 @@ Polymer({
     return false;
   },
 
+  /** Add a filter.
+   *
+   * @param {String} name The name of the filter.
+   * @param {Object} match Parameters for the filter match criteria.
+   * @param {Object} options Style and interaction attributes for this filter.
+   */
   addFilter: function(name, match, options) {
     for (var i = 0; i < this._filters.length; i++) {
       if (this._filters[i].name == name) {
@@ -639,7 +677,7 @@ Polymer({
     };
 
     this._filters.push(filter);
-    this.populateFilter(filter);
+    this._populateFilter(filter);
   },
 
   removeFilter: function(name) {
@@ -677,20 +715,20 @@ Polymer({
     });
   },
 
-  onFilterUp: function(event) {
+  _onFilterUp: function(event) {
     if (this.tapTarget) {
       this.fire('item-tap', { refdes: this.tapTarget, event: event });
     }
     event.preventDefault();
   },
 
-  onFilterDown: function(event) {
+  _onFilterDown: function(event) {
     this.tapTarget = event.currentTarget.getAttribute('refdes');
     event.preventDefault();
   },
 
   /* Create all of the DIV elements that match the declared filter */
-  populateFilter: function(filter) {
+  __populateFilter: function(filter) {
     /* Delete all elements in the filter */
     var filters = Polymer.dom(this.$.filters),
       matches = filters.querySelectorAll('[pattern="' + filter.index + '"]');
@@ -698,7 +736,7 @@ Polymer({
       filters.removeChild(el);
     }, this);
 
-    if (!this.svg) {
+    if (!this._svg) {
       return;
     }
 
@@ -707,8 +745,8 @@ Polymer({
     /* Walk the list of items in the SVG that match the BV_ prefix
      * and compare them to the filter pattern; if it is a match,
      * create a <DIV> in the filter layer */
-    this.svgElements.forEach(function(svgItem) {
-      /* Lookup the refdes in the boardData */
+    this._svgElements.forEach(function(svgItem) {
+      /* Lookup the refdes in the _boardData */
       var item = this.findComponent(svgItem.refdes),
         match = false,
         isPin = item && item.type == "pin";
@@ -774,7 +812,7 @@ Polymer({
 
     potentials.forEach(function(potential) {
       var item = potential.item,
-          svgItem = potential.svgItem,
+          svgItem = potential._svgItem,
           isPin = item.type == "pin";
       /* If this is a COMPONENT, check if any of it's pins are
        * potential matches; if so, don't include the COMPONENT */
@@ -832,10 +870,10 @@ Polymer({
       div.style.left = rect.left;
       div.style.width = rect.width;
       div.style.height = rect.height;
-      div.addEventListener('mouseover', this.onFilterOver.bind(this));
-      div.addEventListener('mouseout', this.onFilterOut.bind(this));
-      div.addEventListener('mousedown', this.onFilterDown.bind(this));
-      div.addEventListener('mouseup', this.onFilterUp.bind(this));
+      div.addEventListener('mouseover', this._onFilterOver.bind(this));
+      div.addEventListener('mouseout', this._onFilterOut.bind(this));
+      div.addEventListener('mousedown', this._onFilterDown.bind(this));
+      div.addEventListener('mouseup', this._onFilterUp.bind(this));
 
       Polymer.dom(this.$.filters).appendChild(div);
     }, this);
@@ -877,7 +915,7 @@ Polymer({
     return null;
   },
 
-  onFilterOver: function(event) {
+  _onFilterOver: function(event) {
     // Highlighting related and connected items bound to the hovered item.
     var connected, related;
     if (connected = event.currentTarget.getAttribute('connected')) {
@@ -901,7 +939,7 @@ Polymer({
     });
   },
 
-  onFilterOut: function(event) {
+  _onFilterOut: function(event) {
     // Removing items related to the hovered item.
     this.removeFilter('connected');
     this.removeFilter('related');
@@ -914,10 +952,10 @@ Polymer({
 
   resize: function() {
     this.debounce("resize", function() {
-      if (!this.svg) {
+      if (!this._svg) {
         return;
       }
-      var bb = this.svg.getBBox();
+      var bb = this._svg.getBBox();
 
       Polymer.dom.flush();
       this.updateStyles();
@@ -931,22 +969,22 @@ Polymer({
         this.scale = this.defaultScale * this.offsetHeight / bb.height;
       }
 
-      this.translation.x = this.offsetWidth * 0.5;
-      this.translation.y = this.offsetHeight * 0.5;
+      this._translation.x = this.offsetWidth * 0.5;
+      this._translation.y = this.offsetHeight * 0.5;
       /* Translate before zoom; zoom will recaluclate the filter div dimensions
-       * from the transformed SVG, including the translation */
-      this.onBoardMove(this.translation.x, this.translation.y);
-      this.onBoardZoom(this.svg, this.zoom);
+       * from the transformed SVG, including the _translation */
+      this._onBoardMove(this._translation.x, this._translation.y);
+      this._onBoardZoom(this._svg, this.zoom);
     }, 100);
   },
 
-  mapSvgToBoardData: function(svg, boardData) {
-    if (!boardData || !svg || svg.tagName.toLowerCase() != 'svg') {
-      console.log('SVG or boardData not set. Not mapping.')
+  _mapSvgTo_boardData: function(svg, _boardData) {
+    if (!_boardData || !svg || svg.tagName.toLowerCase() != 'svg') {
+      console.log('SVG or _boardData not set. Not mapping.')
       return;
     }
 
-    console.log('Mapping SVG to boardData.');
+    console.log('Mapping SVG to _boardData.');
 
     /* Delete any 'title' elements to keep hover tooltips from showing up */
     Array.prototype.forEach.call(svg.querySelectorAll('title'), function(el) {
@@ -954,16 +992,16 @@ Polymer({
     });
 
     var missing = [];
-    /* Scan boardData for all of the items named in the SVG --
+    /* Scan _boardData for all of the items named in the SVG --
      * reporting to console for any missing elements. */
-    this.svgElements.forEach(function(svgItem) {
+    this._svgElements.forEach(function(svgItem) {
       var parts = svgItem.refdes.split("Pin"),
         isPin = parts.length == 2,
         component = this.findComponent(parts[0]),
         pin = isPin ? this.findComponent(svgItem.refdes) : false;
 
       if (!component) {
-        /* Add the component to the boardData */
+        /* Add the component to the _boardData */
         console.log('Component ' + parts[0] + ' not found in '
           + this.board + '/board.json');
         component = {
@@ -973,7 +1011,7 @@ Polymer({
           description: 'No description provided.'
         };
 
-        this.boardData.push(component);
+        this._boardData.push(component);
         missing.push(component);
       }
 
@@ -1002,8 +1040,8 @@ Polymer({
       console.log("Missing items: " + JSON.stringify(missing, null, 2));
     }
 
-    this.calculateSVGElements();
-    this._filters.forEach(this.populateFilter, this);
+    this._calculateSVGElements();
+    this._filters.forEach(this._populateFilter, this);
   },
 
   getDocumentation: function(refdes, type, callback) {
@@ -1071,11 +1109,11 @@ Polymer({
       return item;
     }
 
-    /* No item found in the boardData -- see if it exists in the
+    /* No item found in the _boardData -- see if it exists in the
      * svgElements cache and return just a refdes if so, otherwise
      * return null */
-    for (var i = 0; i < this.svgElements.length; i++) {
-      if (this.svgElements[i].refdes == refdes) {
+    for (var i = 0; i < this._svgElements.length; i++) {
+      if (this._svgElements[i].refdes == refdes) {
         return { refdes: refdes };
       }
     }
@@ -1132,7 +1170,7 @@ Polymer({
       return keywords;
     }
 
-    this.boardData.forEach(function(component) {
+    this._boardData.forEach(function(component) {
       if (component.pins) {
         component.pins.forEach(buildKeywords);
       }
@@ -1148,7 +1186,7 @@ Polymer({
       return;
     }
 
-    this.boardData.forEach(function(component) {
+    this._boardData.forEach(function(component) {
       components.push(component.refdes);
     });
 
@@ -1168,14 +1206,6 @@ Polymer({
     });
 
     callback(components);
-  },
-
-  setBoard: function(board) {
-    if (this.board != board) {
-      this.loading = true;
-      this.board = board || "";
-      this.removeFilter();
-    }
   },
 
   attached: function() {

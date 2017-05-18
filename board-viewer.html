@@ -419,6 +419,8 @@ Polymer({
   },
 
   onBoardChanged: function(board) {
+    this.loading = true;
+
     this.svg = null;
     this.boardData = [];
 
@@ -435,8 +437,6 @@ Polymer({
       this.loading = false;
       return;
     }
-
-    this.loading = true;
 
     console.log('Loading ' + board + ' into board-viewer.');
     this.$.board.url = this.basePath + "boards/" + this.board + "/board.json" ;
@@ -1041,7 +1041,7 @@ Polymer({
       var content;
       if (type && type == 'HTML') {
         try {
-          content = this.md.render(response);
+          content = this.md.render(request.response);
         } catch (___) {
           callback({
             error: "Unable to parse returned content.",
@@ -1050,7 +1050,7 @@ Polymer({
           return;
         }
       } else {
-        content = response;
+        content = request.response;
       }
 
       callback({
@@ -1088,23 +1088,12 @@ Polymer({
       return;
     }
 
-    fetch(this.basePath + "boards.json", function(headers, response) {
-      if (response instanceof Error) {
-        console.log("Unable to load boards.json");
-        callback(response);
-        return;
-      }
-
-      var boards;
-      try {
-        boards = JSON.parse(response);
-      } catch (___) {
-        console.log(___);
-        callback(new Error("Unable to parse boards.json"));
-        return;
-      }
-
-      var results = [];
+    this.$.boards.send({
+      url: this.basePath + "boards.json",
+      handleAs: "json"
+    }).then(function(request) {
+      var boards = request.response,
+        results = [];
       boards.forEach(function(board) {
         results.push({
           name: board.title,
@@ -1118,6 +1107,9 @@ Polymer({
       });
 
       callback(results);
+    }.bind(this)).catch(function(error) {
+      console.log("Unable to load boards.json");
+      callback(new Error(response));
     });
   },
 
@@ -1180,6 +1172,7 @@ Polymer({
 
   setBoard: function(board) {
     if (this.board != board) {
+      this.loading = true;
       this.board = board || "";
       this.removeFilter();
     }

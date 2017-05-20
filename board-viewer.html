@@ -208,8 +208,7 @@ Polymer({
     zoom: {
       type: Number,
       value: 0,
-      notify: true,
-      observer: "_onZoomChanged"
+      notify: true
     },
     /** Default scale for the board. 1.0 fills the viewport (while maintaining
      * aspect ratio.) */
@@ -291,6 +290,8 @@ Polymer({
     });
   },
 
+  /* This needs to be connected to the zoom slider control (currently not
+   * implemented) */
   _onZoomChanged: function(event) {
     this.zoom = Math.max(Math.min(event.detail.value, 1.5), 0.5);
   },
@@ -320,7 +321,7 @@ Polymer({
      * the SVG is not being rendered */
     try {
       bb = svg.getBBox();
-    } catch (___) {
+    } catch (_) {
       return;
     }
 
@@ -334,11 +335,11 @@ Polymer({
     style += 'width: ' + bb.width * zoom + 'px;';
     style += 'height: ' + bb.height * zoom + 'px;';
 
-    this.$._svg.style.cssText = style;
+    this.$.svg.style.cssText = style;
     Polymer.dom.flush();
 
     /* Unhide the SVG itself; we hide it when the board is being loaded. We
-    * don't show it until now because the style for the parent (this.$._svg)
+    * don't show it until now because the style for the parent (this.$.svg)
     * would have it in the wrong spot */
     this._svg.style.width = "100%";
     this._svg.style.height = "100%";
@@ -460,7 +461,7 @@ f
     this.removeFilter();
 
     /* Delete any children of the "svg" */
-    var element = this.$._svg;
+    var element = this.$.svg;
     while (element.firstChild) {
       element.removeChild(element.firstChild);
     }
@@ -526,7 +527,7 @@ f
             });
           }, this);
 
-          this.$._svg.appendChild(svg);
+          this.$.svg.appendChild(svg);
           Polymer.dom.flush();
           this.updateStyles();
 
@@ -728,7 +729,7 @@ f
   },
 
   /* Create all of the DIV elements that match the declared filter */
-  __populateFilter: function(filter) {
+  _populateFilter: function(filter) {
     /* Delete all elements in the filter */
     var filters = Polymer.dom(this.$.filters),
       matches = filters.querySelectorAll('[pattern="' + filter.index + '"]');
@@ -812,7 +813,7 @@ f
 
     potentials.forEach(function(potential) {
       var item = potential.item,
-          svgItem = potential._svgItem,
+          svgItem = potential.svgItem,
           isPin = item.type == "pin";
       /* If this is a COMPONENT, check if any of it's pins are
        * potential matches; if so, don't include the COMPONENT */
@@ -1080,7 +1081,7 @@ f
       if (type && type == 'HTML') {
         try {
           content = this.md.render(request.response);
-        } catch (___) {
+        } catch (_) {
           callback({
             error: "Unable to parse returned content.",
             status: 500

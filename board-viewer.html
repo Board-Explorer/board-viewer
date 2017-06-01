@@ -270,8 +270,54 @@ Polymer({
 
   listeners: {
     "iron-resize" : "resize",
+    "touchmove": "_onPinch",
     "board.response": "_boardLoaded",
     "board.error": "_boardLoadError"
+  },
+
+  _onPinch: function(e) {
+    // Detecting single or none touches:
+    if (e.changedTouches.length < 2) {
+      // When scaling is on, then end.
+      if (this.scaling) {
+        this.trackPoints = [];
+        this.scaling = false;
+      }
+      // A single touch, returning track listener to defult state.
+      else {
+        this.disableDrag ? this.unlisten(this, 'track', '_onTrack') : this.listen(this, 'track', '_onTrack');
+      }
+    }
+    // When a couple of touches are detected, start scaling.
+    else if (!this.scaling && e.changedTouches.length == 2) {
+      // forcing to disable track listener while scaling.
+      this.unlisten(this, 'track', '_onTrack');
+      this.scaling = true;
+    }
+    // Maths while scaling:
+    if (this.scaling) {
+      // Calculating distance between finger touches.
+      var dist = Math.sqrt(
+        Math.pow(e.changedTouches[0].clientX - e.changedTouches[1].clientX, 2) +
+        Math.pow(e.changedTouches[0].clientY - e.changedTouches[1].clientY, 2)
+      );
+      // Storing distances to compare.
+      this.trackPoints.push(dist);
+      // We need to compare the last two distances stored to determine if,
+      // is a zoom in or zoom out.
+      if (this.trackPoints.length >= 2) {
+        var finalDistance = this.trackPoints[this.trackPoints.length - 1];
+        var initialDistance = this.trackPoints[this.trackPoints.length - 2];
+        // Pinch is growing, then zoom in.
+        if (finalDistance > initialDistance) {
+          this.zoom = Math.max(Math.min(this.zoom + 0.1, 2.0), 0);
+        }
+        // Pinch is getting smaller, then zoom out.
+        else {
+          this.zoom = Math.max(Math.min(this.zoom - 0.1, 2.0), 0);
+        }
+      }
+    }
   },
 
   _onFiltersChanged: function(filters) {

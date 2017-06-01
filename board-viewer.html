@@ -1,5 +1,4 @@
 <link rel="import" href="../polymer/polymer.html">
-
 <link rel="import" href="../iron-resizable-behavior/iron-resizable-behavior.html">
 <link rel="import" href="../iron-ajax/iron-ajax.html">
 <link rel="import" href="../iron-ajax/iron-request.html">
@@ -180,10 +179,10 @@ information on creating board files.
 Polymer({
   is: "board-viewer",
   properties: {
-    /** Whether the zoom control is visible. */
+    /** Whether the zoom operations are available / control is visible. */
     disableZoom: {
       type: Boolean,
-      value: true,
+      value: false,
       reflectToAttribute: true
     },
     /** Whether dragging the board is enabled. */
@@ -251,11 +250,20 @@ Polymer({
     },
     _svg: {
       type: Object
+    },
+    scaling: {
+      type: Boolean,
+      value: false
+    },
+    trackPoints: {
+      type: Array,
+      value: []
     }
   },
 
   observers: [
     "_onDisableDrag(disableDrag)",
+    "_onDisableZoom(disableZoom)",
     "_onBoardChanged(board)",
     "_onBoardZoom(_svg, zoom)",
     "_mapSvgTo_boardData(_svg, _boardData)",
@@ -271,48 +279,59 @@ Polymer({
   listeners: {
     "iron-resize" : "resize",
     "touchmove": "_onPinch",
+    "wheel": "_onScroll",
     "board.response": "_boardLoaded",
     "board.error": "_boardLoadError"
   },
 
-  _onPinch: function(e) {
-    // Detecting single or none touches:
-    if (e.changedTouches.length < 2) {
+  _onScroll: function(event) {
+    /* Inverted aim. */
+    if (event.deltaY < 0) {
+      this.zoom = Math.max(Math.min(this.zoom + 0.1, 2.0), 0);
+    }
+    else {
+      this.zoom = Math.max(Math.min(this.zoom - 0.1, 2.0), 0);
+    }
+  },
+
+  _onPinch: function(event) {
+    /* Detecting single or none touches: */
+    if (event.changedTouches.length < 2) {
       // When scaling is on, then end.
       if (this.scaling) {
         this.trackPoints = [];
         this.scaling = false;
       }
-      // A single touch, returning track listener to defult state.
+      /* A single touch, returning track listener to defult state. */
       else {
         this.disableDrag ? this.unlisten(this, 'track', '_onTrack') : this.listen(this, 'track', '_onTrack');
       }
     }
-    // When a couple of touches are detected, start scaling.
-    else if (!this.scaling && e.changedTouches.length == 2) {
-      // forcing to disable track listener while scaling.
+    /* When a couple of touches are detected, start scaling. */
+    else if (!this.scaling && event.changedTouches.length == 2) {
+      /* forcing to disable track listener while scaling. */
       this.unlisten(this, 'track', '_onTrack');
       this.scaling = true;
     }
-    // Maths while scaling:
+    /* Maths while scaling: */
     if (this.scaling) {
-      // Calculating distance between finger touches.
+      /* Calculating distance between finger touches. */
       var dist = Math.sqrt(
-        Math.pow(e.changedTouches[0].clientX - e.changedTouches[1].clientX, 2) +
-        Math.pow(e.changedTouches[0].clientY - e.changedTouches[1].clientY, 2)
+        Math.pow(event.changedTouches[0].clientX - event.changedTouches[1].clientX, 2) +
+        Math.pow(event.changedTouches[0].clientY - event.changedTouches[1].clientY, 2)
       );
-      // Storing distances to compare.
+      /* Storing distances to compare. */
       this.trackPoints.push(dist);
-      // We need to compare the last two distances stored to determine if,
-      // is a zoom in or zoom out.
+      /* We need to compare the last two distances stored to determine if,
+      is a zoom in or zoom out. */
       if (this.trackPoints.length >= 2) {
         var finalDistance = this.trackPoints[this.trackPoints.length - 1];
         var initialDistance = this.trackPoints[this.trackPoints.length - 2];
-        // Pinch is growing, then zoom in.
+        /* Pinch is growing, then zoom in. */
         if (finalDistance > initialDistance) {
           this.zoom = Math.max(Math.min(this.zoom + 0.1, 2.0), 0);
         }
-        // Pinch is getting smaller, then zoom out.
+        /* Pinch is getting smaller, then zoom out. */
         else {
           this.zoom = Math.max(Math.min(this.zoom - 0.1, 2.0), 0);
         }
@@ -417,6 +436,16 @@ Polymer({
     }
   },
 
+  _onDisableZoom: function(disabled) {
+    if (disabled) {
+      this.unlisten(this, 'touchmove', '_onPinch');
+      this.unlisten(this, 'wheel', '_onScroll');
+    } else {
+      this.listen(this, 'touchmove', '_onPinch');
+      this.listen(this, 'wheel', '_onScroll');
+    }
+  },
+
   _onTrack: function(event) {
     this.tapTarget = null;
     event.preventDefault();
@@ -429,7 +458,7 @@ Polymer({
         y: this._translation.y
       }
     }
-f
+
     this._translation.x = this._origin.x + event.detail.dx;
     this._translation.y = this._origin.y + event.detail.dy;
     this._onBoardMove(this._translation.x, this._translation.y);

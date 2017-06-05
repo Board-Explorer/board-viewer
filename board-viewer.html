@@ -15,8 +15,8 @@
 Example:
 
     <board-viewer
-      disable-drag
-      disable-zoom
+      enable-drag
+      enable-zoom
       filters="I2C,JTAG,J6"
       board="quark_mcu_dev_kit_d2000">
     </board-viewer>
@@ -54,14 +54,14 @@ information on creating board files.
     }
 
     #viewer {
+      cursor: default;
+    }
+
+    :host[enable-drag] #viewer {
       cursor: move;
       cursor: -webkit-grab;
       cursor: -moz-grab;
       cursor: grab;
-    }
-
-    :host[disable-drag] #viewer {
-      cursor: default;
     }
 
     .drag {
@@ -172,7 +172,7 @@ information on creating board files.
       <div id="filters"></div>
     </div>
 
-    <template is="dom-if" if="{{!disableZoom}}"><paper-slider id="zoomControl" step="0.1" min="0" max="2" value="0" on-immediate-value-changed="_onZoomChanged"></paper-slider></template>
+    <template is="dom-if" if="{{enableZoom}}"><paper-slider id="zoomControl" step="0.1" min="0" max="2" value="0" on-immediate-value-changed="_onZoomChanged"></paper-slider></template>
   </div>
 </template>
 
@@ -183,13 +183,13 @@ Polymer({
   is: "board-viewer",
   properties: {
     /** Whether the zoom operations are available / control is visible. */
-    disableZoom: {
+    enableZoom: {
       type: Boolean,
       value: false,
       reflectToAttribute: true
     },
     /** Whether dragging the board is enabled. */
-    disableDrag: {
+    enableDrag: {
       type: Boolean,
       value: false,
       reflectToAttribute: true
@@ -265,8 +265,8 @@ Polymer({
   },
 
   observers: [
-    "_onDisableDrag(disableDrag)",
-    "_onDisableZoom(disableZoom)",
+    "_onEnableDrag(enableDrag)",
+    "_onEnableZoom(enableZoom)",
     "_onBoardChanged(board)",
     "_onBoardZoom(_svg, zoom)",
     "_mapSvgTo_boardData(_svg, _boardData)",
@@ -311,7 +311,7 @@ Polymer({
       }
       /* A single touch, returning track listener to defult state. */
       else {
-        this.disableDrag ? this.unlisten(this, 'track', '_onTrack') : this.listen(this, 'track', '_onTrack');
+        this.enableDrag ? this.listen(this, 'track', '_onTrack') : this.unlisten(this, 'track', '_onTrack');
       }
     }
     /* When a couple of touches are detected, start scaling. */
@@ -437,16 +437,16 @@ Polymer({
     }, this);
   },
 
-  _onDisableDrag: function(disabled) {
-    if (disabled) {
+  _onEnableDrag: function(enabled) {
+    if (!enabled) {
       this.unlisten(this, 'track', '_onTrack');
     } else {
       this.listen(this, 'track', '_onTrack');
     }
   },
 
-  _onDisableZoom: function(disabled) {
-    if (disabled) {
+  _onEnableZoom: function(enabled) {
+    if (!enabled) {
       if (this.$$('#zoomControl')) {
         this.$$('#zoomControl').setAttribute('disabled', '');
       }

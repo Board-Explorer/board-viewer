@@ -1,6 +1,9 @@
 # \<board-viewer\>
 
-Interactive hardware board viewer
+
+![Board Viewer](bebv.png)
+
+Interactive hardware board viewer. [Live demo](https://board-explorer.github.io/board-viewer/components/board-viewer/)
 
 ## Install the Polymer-CLI
 

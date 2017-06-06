@@ -635,6 +635,7 @@ Polymer({
     /* For now we only support one side of the board -- front. */
     image.src = "boards/" + this.board + "/" + data.views.front.image;
 
+    var categoryList = data.categories;
     data = data.views.front.components;
     var components = [];
 
@@ -716,11 +717,11 @@ Polymer({
     this._boardData = components;
 
     var categories = [];
-    if (data.categories) {
-      if (!Array.isArray(data.categories)) {
+    if (categoryList) {
+      if (!Array.isArray(categoryList)) {
         console.warn("'categories' should be an array of { name: string, list: []}");
       } else {
-        data.categories.forEach(function(category, index) {
+        categoryList.forEach(function(category, index) {
           var entry = {
             list: []
           };
@@ -728,7 +729,7 @@ Polymer({
             console.warn("'name' is missing or not a string in category #" + index);
             return;
           }
-          if (!category.list || Array.isArray(category.list)) {
+          if (!category.list || !Array.isArray(category.list)) {
             console.warn("'list' is missing or not an array in category #" + index);
             return;
           }

@@ -269,7 +269,7 @@ Polymer({
     "_onEnableZoom(enableZoom)",
     "_onBoardChanged(board)",
     "_onBoardZoom(_svg, zoom)",
-    "_mapSvgTo_boardData(_svg, _boardData)",
+    "_mapSvgToBoardData(_svg, _boardData)",
     "_onBoardLoaded(_svg, board, _boardData)",
     "_onFiltersChanged(filters)"
   ],
@@ -547,6 +547,7 @@ Polymer({
 
     this._svg = null;
     this._boardData = [];
+    this._categories = [];
 
     /* Remove all the filters for the current board */
     this.removeFilter();
@@ -622,7 +623,7 @@ Polymer({
           Polymer.dom.flush();
           this.updateStyles();
 
-          /* Set this._svg at the end so _mapSvgTo_boardData doesn't trigger
+          /* Set this._svg at the end so _mapSvgToBoardData doesn't trigger
            * until the DOM is populated with the SVG */
           this._svg = svg;
         }.bind(this)
@@ -710,7 +711,45 @@ Polymer({
       }
     }
 
+    /* Set _boardData first since findComponent is used when configuring
+     * categories. */
     this._boardData = components;
+
+    var categories = [];
+    if (data.categories) {
+      if (!Array.isArray(data.categories)) {
+        console.warn("'categories' should be an array of { name: string, list: []}");
+      } else {
+        data.categories.forEach(function(category, index) {
+          var entry = {
+            list: []
+          };
+          if (!category.name || typeof category.name !== 'string') {
+            console.warn("'name' is missing or not a string in category #" + index);
+            return;
+          }
+          if (!category.list || Array.isArray(category.list)) {
+            console.warn("'list' is missing or not an array in category #" + index);
+            return;
+          }
+
+          entry.name = category.name;
+
+          category.list.forEach(function(refdes) {
+            var item = this.findComponent(refdes);
+            if (!item) {
+              console.warn("'" + refdes + "' listed in category #" + index + " does not exist.");
+              return;
+            }
+            entry.list.push(refdes);
+          }.bind(this));
+
+          categories.push(entry);
+        }.bind(this));
+      }
+    }
+
+    this._categories = categories;
     this.loading = false;
   },
 
@@ -727,6 +766,12 @@ Polymer({
     }
 
     return false;
+  },
+
+  /** Get the list of component categories.
+   */
+  getCategories: function() {
+    return this._categories;
   },
 
   /** Add a filter.
@@ -1070,7 +1115,7 @@ Polymer({
     }, 100);
   },
 
-  _mapSvgTo_boardData: function(svg, _boardData) {
+  _mapSvgToBoardData: function(svg, _boardData) {
     if (!_boardData || !svg || svg.tagName.toLowerCase() != 'svg') {
       console.log('SVG or _boardData not set. Not mapping.')
       return;

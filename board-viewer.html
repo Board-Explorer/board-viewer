@@ -568,7 +568,12 @@ Polymer({
     }
 
     console.log('Loading ' + board + ' into board-viewer.');
-    this.$.board.url = this.basePath + "boards/" + this.board + "/board.json" ;
+    var url = this.basePath + "boards/" + this.board + "/board.json";
+    if (this.$.board.url == url) {
+      this.$.board.generateRequest();
+    } else {
+      this.$.board.url = url;
+    }
   },
 
   _boardLoaded: function(event) {

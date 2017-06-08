@@ -516,6 +516,10 @@ Polymer({
       }
     }
 
+    if (!component) {
+      return null;
+    }
+
     /* If the inbound refdes isn't a pin, return the component */
     if (!isPin) {
       return component;

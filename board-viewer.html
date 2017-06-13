@@ -1283,6 +1283,9 @@ Polymer({
     }).then(function(request) {
       var boards = request.response,
         results = [];
+      if (!boards || !Array.isArray(boards)) {
+        return Promise.reject("boards.json did not return any boards.");
+      }
       boards.forEach(function(board) {
         results.push({
           name: board.title,
@@ -1298,7 +1301,7 @@ Polymer({
       callback(results);
     }.bind(this)).catch(function(error) {
       console.log("Unable to load boards.json");
-      callback(new Error(response));
+      callback(new Error(error));
     });
   },
 

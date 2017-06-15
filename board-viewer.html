@@ -728,6 +728,17 @@ Polymer({
     /* Set _boardData first since findComponent is used when configuring
      * categories. */
     this._boardData = components;
+    /* Rewalking components to find implicit relationships */
+    for (var i = 0; i < this._boardData.length; i ++) {
+      this._boardData[i].implicitRelated = this.getImplicitRelations(this._boardData[i].refdes, 'related');
+      this._boardData[i].implicitConnected = this.getImplicitRelations(this._boardData[i].refdes, 'connected');
+      if (this._boardData[i].pins) {
+        for (var j = 0; j < this._boardData[i].pins.length; j ++) {
+          this._boardData[i].pins[j].implicitRelated = this.getImplicitRelations(this._boardData[i].pins[j].refdes, 'related');
+          this._boardData[i].pins[j].implicitConnected = this.getImplicitRelations(this._boardData[i].pins[j].refdes, 'connected');
+        }
+      }
+    }
 
     var categories = [];
     if (categoryList) {
@@ -780,6 +791,81 @@ Polymer({
     }
 
     return false;
+  },
+
+  getImplicitRelations: function (refdes, type) {
+    var relatedRefdes = [];
+    /* Walk backward and find if refdes is within a connected/related set,
+    in other component. */
+    relatedRefdes = relatedRefdes.concat(this._searchBackReferences(refdes, type));
+    /* If we found a previus references we need to still rewalking behind,
+    the references added. */
+    var i = 0;
+    do {
+      /* Appending previous references */
+      relatedRefdes = relatedRefdes.concat(this._searchBackReferences(relatedRefdes[i], type));
+      i++;
+    } while(i < relatedRefdes.length);
+    /* Walking foward */
+    var component = this.findComponent(refdes);
+    var rels = (type == 'connected') ? component.connected : component.related;
+    /* If we have an explicit set of related/connected */
+    if (rels) {
+      /* Appending inital set, to the previous references. */
+      relatedRefdes = relatedRefdes.concat(rels);
+      i = relatedRefdes.length - rels.length - 1;
+      do {
+         /* Appending explicit references of foward elements */
+        relatedRefdes = relatedRefdes.concat(this._searchAheadReferences(relatedRefdes[i], type));
+        i++;
+      } while(i < relatedRefdes.length);
+    }
+    return relatedRefdes;
+  },
+
+  _searchBackReferences: function(refdes, type) {
+    var components =  this._boardData, relatedRefdes = [];
+    for (var i = 0; i < components.length; i++) {
+      /* We get the set to start find the refdes within */
+      var rels = (type == 'connected') ? components[i].connected : components[i].related;
+      /* The component has the refdes in the set, then add the refdes into the array */
+      if (rels && rels.indexOf(refdes) != -1) {
+        relatedRefdes.push(components[i].refdes);
+      }
+      /* If the component have pins, do the same on them */
+      if (components[i].pins) {
+        var pins =  components[i].pins;
+        for (var j = 0; j < pins.length; j++) {
+          rels = (type == 'connected') ? pins[j].connected : rels = pins[j].related;;
+          if (rels && rels.indexOf(refdes) != -1) {
+            relatedRefdes.push(pins[j].refdes);
+          }
+        }
+      }
+    }
+    return relatedRefdes;
+  },
+
+  _searchAheadReferences: function(refdes, type) {
+    var component = this.findComponent(refdes), relatedRefdes = [];
+    /* Only if we found a connected set */
+    if (component) {
+      var rels = (type == 'connected') ? component.connected : component.related;
+      if (rels) {
+        relatedRefdes = relatedRefdes.concat(rels);
+      }
+      /* If the component have pins, do the same */
+      if (component.pins) {
+        var pins =  component.pins;
+        for (var j = 0; j < component.pins.length; j++) {
+          rels = (type == 'connected') ? pins.connected : pins.related;
+          if (rels) {
+            relatedRefdes = relatedRefdes.concat(rels);
+          }
+        }
+      }
+    }
+    return relatedRefdes;
   },
 
   /** Get the list of component categories.
@@ -985,12 +1071,12 @@ Polymer({
       div.setAttribute('refdes', item.refdes);
 
       /* Add related list of items to an aattibute within the div */
-      if (item.related) {
-        div.setAttribute('related', item.related.join());
+      if (item.implicitRelated) {
+        div.setAttribute('related', item.implicitRelated.join());
       }
       /* Add connected list of items to an aattibute within the div */
-      if (item.connected) {
-        div.setAttribute('connected', item.connected.join());
+      if (item.implicitConnected) {
+        div.setAttribute('connected', item.implicitConnected.join());
       }
 
       /* The over class sets opacity to 100% when :hover is

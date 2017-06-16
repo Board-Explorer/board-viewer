@@ -198,12 +198,7 @@ Polymer({
      * out of the *basePath* directory as *basePath/board* */
     board: {
       type: String,
-      notify: true
-    },
-    /** The board specified by *board* is loading. */
-    loading: {
-      type: Boolean,
-      value: false,
+      readOnly: true,
       notify: true
     },
     /** The zoom level of the board. Minimum: 0.5, Maximum: 1.5 */
@@ -271,10 +266,8 @@ Polymer({
   observers: [
     "_onEnableDrag(enableDrag)",
     "_onEnableZoom(enableZoom)",
-    "_onBoardChanged(board)",
     "_onBoardZoom(_svg, zoom)",
     "_mapSvgToBoardData(_svg, _boardData)",
-    "_onBoardLoaded(_svg, board, _boardData)",
     "_onFiltersChanged(filters)"
   ],
 
@@ -542,16 +535,12 @@ Polymer({
     return null;
   },
 
-  _onBoardLoaded: function(svg, board, _boardData) {
-    if (!svg || !board || !_boardData) {
-      return;
-    }
-
-    this.board = board;
-  },
-
-  _onBoardChanged: function(board) {
-    this.loading = true;
+  /** Load a new board.
+   *
+   * @param {String} board The name of the board to load.
+   */
+  loadBoard: function(board) {
+    this._board = board;
 
     this._svg = null;
     this._boardData = [];
@@ -566,13 +555,14 @@ Polymer({
       element.removeChild(element.firstChild);
     }
 
+    this._setBoard("");
+
     if (!board || board == '') {
-      this.loading = false;
       return;
     }
 
     console.log('Loading ' + board + ' into board-viewer.');
-    var url = this.basePath + "boards/" + this.board + "/board.json";
+    var url = this.basePath + "boards/" + this._board + "/board.json";
     if (this.$.board.url == url) {
       this.$.board.generateRequest();
     } else {
@@ -581,7 +571,7 @@ Polymer({
   },
 
   _boardLoaded: function(event) {
-    console.log("Parsing " + this.board);
+    console.log("Parsing " + this._board);
 
     var image = document.createElement('img');
 
@@ -608,7 +598,7 @@ Polymer({
 
           Polymer.dom.flush();
 
-          svg.setAttribute('board', this.board);
+          svg.setAttribute('board', this._board);
           /* Trim off any whitespace/viewbox padding from the SVG
            * asset */
           var bb = svg.getBBox();
@@ -646,7 +636,7 @@ Polymer({
     var data = this.$.board.lastResponse;
 
     /* For now we only support one side of the board -- front. */
-    image.src = "boards/" + this.board + "/" + data.views.front.image;
+    image.src = "boards/" + this._board + "/" + data.views.front.image;
 
     var categoryList = data.categories;
     data = data.views.front.components;
@@ -775,12 +765,11 @@ Polymer({
     }
 
     this._categories = categories;
-    this.loading = false;
+    this._setBoard(this._board);
   },
 
   _boardLoadError: function(event) {
-    console.log("Unable to load boards/" + this.board + ".json");
-    this.loading = false;
+    console.log("Unable to load boards/" + this._board + ".json");
   },
 
   hasFilter: function(name) {
@@ -1240,7 +1229,7 @@ Polymer({
       if (!component) {
         /* Add the component to the _boardData */
         console.log('Component ' + parts[0] + ' not found in '
-          + this.board + '/board.json');
+          + this._board + '/board.json');
         component = {
           type: "component",
           refdes: parts[0],
@@ -1254,7 +1243,7 @@ Polymer({
 
       if (isPin && !pin) {
         console.log('Pin ' + parts[1] + ' not found under ' + parts[0]
-            + ' for ' + this.board + '/board.json');
+            + ' for ' + this._board + '/board.json');
         pin = {
           type: "pin",
           refdes: svgItem.refdes,
@@ -1282,6 +1271,13 @@ Polymer({
   },
 
   getDocumentation: function(refdes, type, callback) {
+    if (!this.board) {
+      callback({
+        error: "No board loaded.",
+        status: 500
+      });
+    }
+
     /* Adjust for optional parameters */
 
     /* If type is not set, and refdes is set to HTML or MD,

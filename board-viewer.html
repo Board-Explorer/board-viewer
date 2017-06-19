@@ -1027,7 +1027,6 @@ Polymer({
       case "CATEGORY":
         /* With LIST, filter.set is an array of REFDES or KEYWORDs to
          * match against */
-         console.log(filter);
         for (var i = 0; i < filter.match.pattern.length; i++) {
           /* Check the REFDES against the set entry */
           match |= svgItem.refdes == filter.match.pattern[i];

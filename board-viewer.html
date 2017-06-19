@@ -352,9 +352,7 @@ Polymer({
     if (!Array.isArray(filters)) {
       filters = [ filters ];
     }
-    this.addFilter("selected", {
-      type: "LIST", set: filters
-    }, {
+    this.addFilter("selected", filters, {
       color: "#ffff00",
       interactive: false,
       alwaysVisible: true
@@ -895,6 +893,23 @@ Polymer({
       }
     }
 
+    /* If the match is an array, we can assume that is a LIST type filter */
+    if (Array.isArray(match)) {
+      match = {
+        type: "LIST",
+        pattern: match
+      }
+    }
+
+    /* If the match is an object and have the property list */
+    if (typeof match === "object" && match.list) {
+      match = {
+        type: "CATEGORY",
+        category: match.name,
+        pattern: match.list
+      }
+    }
+
     var filter = {
       name: name,
       match: match,
@@ -1009,17 +1024,17 @@ Polymer({
         break;
 
       case "LIST":
+      case "CATEGORY":
         /* With LIST, filter.set is an array of REFDES or KEYWORDs to
          * match against */
-
-        for (var i = 0; i < filter.match.set.length; i++) {
+        for (var i = 0; i < filter.match.pattern.length; i++) {
           /* Check the REFDES against the set entry */
-          match |= svgItem.refdes == filter.match.set[i];
+          match |= svgItem.refdes == filter.match.pattern[i];
 
           /* Check the KEYWORDS agsint the set entry */
           if (item && item.keywords) {
             for (var j = 0; !match && j < item.keywords.length; j++) {
-              match |= item.keywords[j] == filter.match.set[i];
+              match |= item.keywords[j] == filter.match.pattern[i];
             }
           }
           if (match) {
@@ -1145,14 +1160,14 @@ Polymer({
     // Highlighting related and connected items bound to the hovered item.
     var connected, related;
     if (connected = event.currentTarget.getAttribute('connected')) {
-      this.addFilter('connected', {type: 'LIST', set: connected.split(',')}, {
+      this.addFilter('connected', connected.split(','), {
         color: "#ff8000",
         alwaysVisible: true,
         interactive: false
       });
     }
     if (related = event.currentTarget.getAttribute('related')) {
-      this.addFilter('related', {type: 'LIST', set: related.split(',')}, {
+      this.addFilter('related', related.split(','), {
         color: "#00ff00",
         alwaysVisible: true,
         interactive: false

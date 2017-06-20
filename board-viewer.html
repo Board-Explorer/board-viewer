@@ -545,18 +545,18 @@ Polymer({
 
     this._board = board;
 
+    /* Delete any children of the svg container */
+    var element = this.$.svg;
+    while (element.firstChild) {
+      element.removeChild(element.firstChild);
+    }
+
     this._svg = null;
     this._boardData = [];
     this._categories = [];
 
     /* Remove all the filters for the current board */
     this.removeFilter();
-
-    /* Delete any children of the "svg" */
-    var element = this.$.svg;
-    while (element.firstChild) {
-      element.removeChild(element.firstChild);
-    }
 
     this._setBoard("");
 
@@ -606,6 +606,19 @@ Polymer({
 
           if (typeof svg == 'string') {
             console.log('ERROR: ' + svg);
+            return;
+          }
+
+          /* If this board is already loaded by a concurrent load instance,
+           * don't parse it again. This sequence could occur if multiple
+           * loadBoard() calls are made rapidly switching between a two
+           * boards while the assets from one are still loading or being
+           * parsed. loadBoard(A), then before A finishes loading, loadBoard(B)
+           * then loadBoard(A) again. Two SVGLoaders could fire concurrently;
+           * only one should be processed. */
+          if (this.$.svg.firstChild &&
+            this.$.svg.firstChild.getAttribute('board') == this._board) {
+            console.log("Not re-loading/parsing the same board more than once");
             return;
           }
 

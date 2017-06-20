@@ -538,6 +538,11 @@ Polymer({
    * @param {String} board The name of the board to load.
    */
   loadBoard: function(board) {
+    /* Do not attempt to re-load the same board multiple times */
+    if (this._board == board) {
+      return;
+    }
+
     this._board = board;
 
     this._svg = null;
@@ -585,10 +590,20 @@ Polymer({
     /* Do not inject the SVG until after the SVG has completed
      * loading into the main image, otherwise there is a race
      * c_onDition which can result in the SVG never showing up */
-    image.onload = function() {
+    image.onload = function(board) {
+      if (board != this._board) {
+        console.log("Discarding load of older board {IMG}.");
+        return;
+      }
+
       SVGInjector(image, {
         evalScripts: 'once',
         each: function(svg) {
+          if (board != this._board) {
+            console.log("Discarding load of older board {SVG}.");
+            return;
+          }
+
           if (typeof svg == 'string') {
             console.log('ERROR: ' + svg);
             return;
@@ -620,6 +635,8 @@ Polymer({
             });
           }, this);
 
+          console.log("Binding board image to the DOM");
+
           this.$.svg.appendChild(svg);
           Polymer.dom.flush();
           this.updateStyles();
@@ -629,7 +646,7 @@ Polymer({
           this._svg = svg;
         }.bind(this)
       });
-    }.bind(this);
+    }.bind(this, this._board);
 
     var data = this.$.board.lastResponse;
 

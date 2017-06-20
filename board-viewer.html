@@ -747,7 +747,7 @@ Polymer({
           }
 
           entry.name = category.name;
-          entry.href = category.name.toLowerCase().replace(/[^\w ]+/g,'').replace(/ +/g,'-');
+          entry.slug = escape(category.name.toLowerCase().replace(/[^\w ]+/g,'').replace(/ +/g,'-'));
 
           var keywords = [];
           this.getKeywords(function(results) {

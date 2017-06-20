@@ -172,7 +172,9 @@ information on creating board files.
       <div id="filters"></div>
     </div>
 
-    <template is="dom-if" if="{{enableZoom}}"><paper-slider id="zoomControl" step="0.1" min="0" max="2" value="0" on-immediate-value-changed="_onZoomChanged"></paper-slider></template>
+    <template is="dom-if" if="{{enableZoom}}"><paper-slider id="zoomControl"
+      step="0.1" min="0" max="2" value="0"
+      on-immediate-value-changed="_onZoomChanged"></paper-slider></template>
   </div>
 </template>
 
@@ -305,18 +307,19 @@ Polymer({
       if (this.scaling) {
         this.trackPoints = [];
         this.scaling = false;
-      }
-      /* A single touch, returning track listener to defult state. */
-      else {
+      } else {
+        /* A single touch, returning track listener to defult state. */
         this.enableDrag ? this.listen(this, 'track', '_onTrack') : this.unlisten(this, 'track', '_onTrack');
       }
+    } else {
+      if (!this.scaling && event.changedTouches.length == 2) {
+        /* When a couple of touches are detected, start scaling. */
+        /* forcing to disable track listener while scaling. */
+        this.unlisten(this, 'track', '_onTrack');
+        this.scaling = true;
+      }
     }
-    /* When a couple of touches are detected, start scaling. */
-    else if (!this.scaling && event.changedTouches.length == 2) {
-      /* forcing to disable track listener while scaling. */
-      this.unlisten(this, 'track', '_onTrack');
-      this.scaling = true;
-    }
+
     /* Maths while scaling: */
     if (this.scaling) {
       /* Calculating distance between finger touches. */
@@ -335,9 +338,8 @@ Polymer({
         /* Pinch is growing, then zoom in. */
         if (finalDistance > initialDistance) {
           this.zoom = Math.max(Math.min(this.zoom + 0.1, 2.0), 0);
-        }
-        /* Pinch is getting smaller, then zoom out. */
-        else {
+        } else {
+          /* Pinch is getting smaller, then zoom out. */
           this.zoom = Math.max(Math.min(this.zoom - 0.1, 2.0), 0);
         }
         zoomControl.value = this.zoom;

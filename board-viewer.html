@@ -1,8 +1,11 @@
 <link rel="import" href="../polymer/polymer.html">
-<link rel="import" href="../iron-resizable-behavior/iron-resizable-behavior.html">
 <link rel="import" href="../paper-slider/paper-slider.html">
 <link rel="import" href="../iron-ajax/iron-ajax.html">
 <link rel="import" href="../iron-ajax/iron-request.html">
+<link rel="import" href="../iron-flex-layout/iron-flex-layout-classes.html">
+<link rel="import" href="../iron-icon/iron-icon.html">
+<link rel="import" href="../iron-icons/maps-icons.html">
+<link rel="import" href="../iron-resizable-behavior/iron-resizable-behavior.html">
 
 <script src="../es6-shim/es6-shim.min.js"></script>
 <script src="../markdown-it/dist/markdown-it.js"></script>
@@ -33,7 +36,7 @@ information on creating board files.
 
 <dom-module id='board-viewer'>
   <template>
-  <style>
+  <style include="iron-flex iron-flex-alignment iron-positioning">
     /* The board-viewer only uses div and img; reset those elements
      * to their initial settings within the .board-viewer namespace */
     :host {
@@ -161,6 +164,17 @@ information on creating board files.
       height: 100%;
       width: 100%;
     }
+
+    #controls {
+      margin-right: 1em;
+      color: #bdbdbd;
+      --iron-icon-fill-color: #bdbdbd;
+    }
+
+    #controls * {
+      z-index: 300; /* Above filters (100) and pins (200) */
+      cursor: pointer;
+    }
   </style>
 
   <div id="viewer">
@@ -172,9 +186,17 @@ information on creating board files.
       <div id="filters"></div>
     </div>
 
-    <template is="dom-if" if="{{enableZoom}}"><paper-slider id="zoomControl"
-      step="0.1" min="0" max="2" value="0"
-      on-immediate-value-changed="_onZoomChanged"></paper-slider></template>
+    <div id="controls" class="horizontal layout end-justified center">
+      <template is="dom-if" if="[[enableZoom]]">
+        <paper-slider id="zoomControl"
+          step="0.1" min="0" max="2" value="0"
+          on-immediate-value-changed="_onZoomChanged">
+        </paper-slider>
+      </template>
+      <template is="dom-if" if="[[disableAutoResize]]">
+        <iron-icon icon="maps:zoom-out-map" on-tap="_zoomToFit"></iron-icon>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -184,6 +206,12 @@ information on creating board files.
 Polymer({
   is: "board-viewer",
   properties: {
+    /** When set, board will not resize with it's client region. */
+    disableAutoResize: {
+      type: Boolean,
+      value: false,
+      reflectToAttribute: true
+    },
     /** Whether the zoom operations are available / control is visible. */
     enableZoom: {
       type: Boolean,
@@ -255,6 +283,10 @@ Polymer({
     _svg: {
       type: Object
     },
+    _firstResize: { /* Has the first resize event been triggered */
+      type: Boolean,
+      value: true
+    },
     scaling: {
       type: Boolean,
       value: false
@@ -269,7 +301,8 @@ Polymer({
     "_onEnableDrag(enableDrag)",
     "_onEnableZoom(enableZoom)",
     "_mapSvgToBoardData(_svg, _boardData)",
-    "_onFiltersChanged(filters)"
+    "_onFiltersChanged(filters)",
+    "_onDisableAutoResizeChanged(disableAutoResize)"
   ],
 
   behaviors: [
@@ -285,18 +318,30 @@ Polymer({
     "board.error": "_boardLoadError"
   },
 
+  _zoomToFit: function() {
+    this._firstResize = true;
+    this.$$('#zoomControl').value = 0;
+    this.resize();
+  },
+
+  _onDisableAutoResizeChanged: function(disableAutoResize) {
+    if (!disableAutoResize) {
+      this.resize();
+    }
+  },
+
   _onScroll: function(event) {
     /* Getting zoom-bar. */
     var zoomControl = this.$$('#zoomControl');
      /* Inverted aim. */
     if (event.deltaY < 0) {
       this.zoom = Math.max(Math.min(this.zoom + 0.1, 2.0), 0);
-    }
-    else {
+    } else {
       this.zoom = Math.max(Math.min(this.zoom - 0.1, 2.0), 0);
     }
      /* Adjusting bar progres to current zoom value. */
     zoomControl.value = this.zoom;
+    this._onBoardZoom(this._svg, this.zoom);
   },
 
   _onPinch: function(event) {
@@ -342,6 +387,8 @@ Polymer({
           this.zoom = Math.max(Math.min(this.zoom - 0.1, 2.0), 0);
         }
         zoomControl.value = this.zoom;
+
+        this._onBoardZoom(this._svg, this.zoom);
       }
     }
   },
@@ -364,6 +411,7 @@ Polymer({
    * implemented) */
   _onZoomChanged: function(event) {
     this.zoom = Math.max(Math.min(event.detail.value, 2.0), 0);
+    this.resize();
   },
 
   _onBoardMove: function(x, y) {
@@ -1234,26 +1282,34 @@ Polymer({
       if (!this._svg) {
         return;
       }
-      var bb = this._svg.getBBox();
 
       Polymer.dom.flush();
       this.updateStyles();
-      /* Compare aspect ratio of the board with the aspect ratio of the
-       * viewport and set the scale based on the best-fit */
-      if (bb.width / bb.height > this.offsetWidth / this.offsetHeight) {
-        /* Board is wider-angle than the viewport, so use width as best-fit */
-        this.scale = this.defaultScale * this.offsetWidth / bb.width;
-      } else {
-        /* Board is narrower-angle than the viewport, so use height as best-fit */
-        this.scale = this.defaultScale * this.offsetHeight / bb.height;
+
+      if (this._firstResize || !this.disableAutoResize) {
+        var bb = this._svg.getBBox();
+
+        /* Compare aspect ratio of the board with the aspect ratio of the
+         * viewport and set the scale based on the best-fit */
+        if (bb.width / bb.height > this.offsetWidth / this.offsetHeight) {
+          /* Board is wider-angle than the viewport, so use width as best-fit */
+          this.scale = this.defaultScale * this.offsetWidth / bb.width;
+        } else {
+          /* Board is narrower-angle than the viewport, so use height as best-fit */
+          this.scale = this.defaultScale * this.offsetHeight / bb.height;
+        }
+
+        this._translation.x = this.offsetWidth * 0.5;
+        this._translation.y = this.offsetHeight * 0.5;
+
+        this._firstResize = false;
       }
 
-      this._translation.x = this.offsetWidth * 0.5;
-      this._translation.y = this.offsetHeight * 0.5;
       /* Translate before zoom; zoom will recaluclate the filter div dimensions
        * from the transformed SVG, including the _translation */
       this._onBoardMove(this._translation.x, this._translation.y);
       this._onBoardZoom(this._svg, this.zoom);
+
     }, 100);
   },
 

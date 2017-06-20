@@ -747,14 +747,20 @@ Polymer({
           }
 
           entry.name = category.name;
+          entry.slug = escape(category.name.toLowerCase().replace(/[^\w ]+/g,'').replace(/ +/g,'-'));
 
-          category.list.forEach(function(refdes) {
-            var item = this.findComponent(refdes);
-            if (!item) {
-              console.warn("'" + refdes + "' listed in category #" + index + " does not exist.");
+          var keywords = [];
+          this.getKeywords(function(results) {
+            keywords = results;
+          });
+
+          category.list.forEach(function(term) {
+            var item = this.findComponent(term);
+            if (!item && keywords.indexOf(term) == -1) {
+              console.warn("'" + term + "' listed in category #" + index + " does not exist.");
               return;
             }
-            entry.list.push(refdes);
+            entry.list.push(term);
           }.bind(this));
 
           categories.push(entry);

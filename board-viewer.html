@@ -268,7 +268,6 @@ Polymer({
   observers: [
     "_onEnableDrag(enableDrag)",
     "_onEnableZoom(enableZoom)",
-    "_onBoardZoom(_svg, zoom)",
     "_mapSvgToBoardData(_svg, _boardData)",
     "_onFiltersChanged(filters)"
   ],
@@ -410,8 +409,8 @@ Polymer({
     Polymer.dom.flush();
 
     /* Unhide the SVG itself; we hide it when the board is being loaded. We
-    * don't show it until now because the style for the parent (this.$.svg)
-    * would have it in the wrong spot */
+     * don't show it until now because the style for the parent (this.$.svg)
+     * would have it in the wrong spot */
     this._svg.style.width = "100%";
     this._svg.style.height = "100%";
     this._svg.style.visibility = 'visible';
@@ -652,9 +651,10 @@ Polymer({
 
           console.log("Binding board image to the DOM");
 
-          this.$.svg.appendChild(svg);
           Polymer.dom.flush();
           this.updateStyles();
+
+          this.$.svg.appendChild(svg);
 
           /* Set this._svg at the end so _mapSvgToBoardData doesn't trigger
            * until the DOM is populated with the SVG */

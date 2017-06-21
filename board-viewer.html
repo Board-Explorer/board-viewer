@@ -283,6 +283,10 @@ Polymer({
     _svg: {
       type: Object
     },
+    _svgElements: {
+      type: Array,
+      value: []
+    },
     _firstResize: { /* Has the first resize event been triggered */
       type: Boolean,
       value: true
@@ -1454,7 +1458,7 @@ Polymer({
     }
 
     /* No item found in the _boardData -- see if it exists in the
-     * svgElements cache and return just a refdes if so, otherwise
+     * _svgElements cache and return just a refdes if so, otherwise
      * return null */
     for (var i = 0; i < this._svgElements.length; i++) {
       if (this._svgElements[i].refdes == refdes) {

@@ -1426,18 +1426,18 @@ Polymer({
     var ironRequest = document.createElement('iron-request');
     ironRequest.send({url: url}).then(function(request) {
       var content;
-      if (type && type == 'HTML') {
-        try {
-          content = this.md.render(request.response);
-        } catch (_) {
-          callback({
-            error: "Unable to parse returned content.",
-            status: 500
-          });
-          return;
+      try {
+        content = Mustache.render(request.response, item);
+
+        if (type && type == 'HTML') {
+          content = this.md.render(content);
         }
-      } else {
-        content = request.response;
+      } catch (_) {
+        callback({
+          error: "Unable to parse returned content.",
+          status: 500
+        });
+        return;
       }
 
       callback({

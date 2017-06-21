@@ -704,6 +704,8 @@ Polymer({
 
           this.$.svg.appendChild(svg);
 
+          this._firstResize = true; /* Re-trigger a scaling resize */
+
           /* Set this._svg at the end so _mapSvgToBoardData doesn't trigger
            * until the DOM is populated with the SVG */
           this._svg = svg;

@@ -3,6 +3,7 @@
 # Get the highest tag number from GIT
 
 VERSION=$(git tag | sort -rV | head -n 1)
+CURRENT=${VERSION}
 
 # Strip the v
 VERSION=${VERSION:1}
@@ -38,6 +39,28 @@ EOF
   exit -1
 }
 
+git diff-index --quiet --cached "${CURRENT}" -- && {
+cat << EOF
+
+There are no changes in the current tree from the last tagged
+version ($CURRENT).
+
+EOF
+  exit -1
+}
+
+echo "Tagging tree as '${TAG}'"
 git tag -a v${TAG} -m "${TAG}"
 git push --tags
+
+cat << EOF
+
+Done.
+
+You can now publish the project:
+
+  BASE=/\$(basename \$(pwd))/ ./build.sh
+  ./publish.sh
+
+EOF
 

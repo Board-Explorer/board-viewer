@@ -21,7 +21,7 @@ branch=master
 
 # make folder (same as input, no checking!)
 [ -d gh-pages ] && rm -rf gh-pages
-git clone . gh-pages --single-branch
+git clone git@github.com:${org}/${repo}.git gh-pages --single-branch
 cd gh-pages
 git checkout --orphan gh-pages
 

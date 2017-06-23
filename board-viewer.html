@@ -1036,11 +1036,8 @@ Polymer({
 
     if (!name) {
       /* Remove all filters */
-      while (filters.lastChild) {
-        if (filters.lastChild == this.$.shadow) {
-          break;
-        }
-        filters.removeChild(filters.lastChild);
+      while (filters.firstChild) {
+        filters.removeChild(filters.firstChild);
       }
       this._filters = [];
       this._renderShadow();
@@ -1433,18 +1430,24 @@ Polymer({
       var offset = this.getBoundingClientRect(),
         rect = canvas.getBoundingClientRect(),
         svgRect = this.$.svg.getBoundingClientRect(),
-        borderWidth = 3;
+        borderWidth = 0;
 
       ctx.save();
       ctx.fillStyle = 'rgba(20,20,20,1)';
       ctx.fillRect(0, 0, rect.width, rect.height);
       ctx.translate(this._translate.x - rect.width * 0.5, this._translate.y - rect.height * 0.5);
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = "yellow";
+      ctx.fillStyle = "rgba(0, 0, 0, 1)";
       for (var i = 0; i < holes.length; i++) {
-        ctx.clearRect(
-          rect.width * 0.5 + holes[i].offsetLeft - holes[i].offsetWidth * 0.5 - borderWidth,
-          rect.height * 0.5 + holes[i].offsetTop - holes[i].offsetHeight * 0.5 - borderWidth,
-          holes[i].offsetWidth + borderWidth * 2,
-          holes[i].offsetHeight + borderWidth * 2);
+        var rect = {
+          left: rect.width * 0.5 + holes[i].offsetLeft - holes[i].offsetWidth * 0.5 - borderWidth,
+          top: rect.height * 0.5 + holes[i].offsetTop - holes[i].offsetHeight * 0.5 - borderWidth,
+          width: holes[i].offsetWidth + borderWidth * 2,
+          height: holes[i].offsetHeight + borderWidth * 2
+        };
+        ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
+        ctx.clearRect(rect.left, rect.top, rect.width, rect.height);
       }
       ctx.restore();
     });

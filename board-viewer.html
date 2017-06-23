@@ -1,4 +1,4 @@
-<link rel="import" href="../polymer/polymer.html">
+_translate<link rel="import" href="../polymer/polymer.html">
 <link rel="import" href="../paper-slider/paper-slider.html">
 <link rel="import" href="../iron-ajax/iron-ajax.html">
 <link rel="import" href="../iron-ajax/iron-request.html">
@@ -93,7 +93,8 @@ information on creating board files.
     }
 
     #shadow {
-      transform: translate(-50%, -50%);
+      right: 0px;
+      bottom: 0px;
       opacity: 0.5;
       z-index: 50; /* Above the board (0), below filters (100) and pins (200) and controls (300) */
       pointer-events: none;
@@ -191,11 +192,11 @@ information on creating board files.
     <iron-request id="boards"></iron-request>
     <iron-ajax auto handle-as="json" id="board"></iron-ajax>
 
+    <canvas id="shadow"></canvas>
 
     <div id="container">
       <div id="svg"><!-- holds the created IMG that SVGInjector() uses--></div>
       <div id="filters"></div>
-      <canvas id="shadow"></canvas>
     </div>
 
     <div id="controls" class="horizontal layout end-justified center">
@@ -265,7 +266,7 @@ Polymer({
     filters: {
       type: String
     },
-    _translation: {
+    _translate: {
       type: Object,
       value: {
         x: 0,
@@ -439,6 +440,8 @@ Polymer({
     container.style.top = y + 'px';
     container.style.left = x + 'px';
 
+    this._renderShadow();
+
     Polymer.dom.flush();
   },
 
@@ -490,8 +493,8 @@ Polymer({
     this._svgElements.forEach(function(svgItem) {
       var rect = svgItem.el.getBoundingClientRect();
       svgItem.rect = {
-        top: rect.top + rect.height * 0.5 - this._translation.y - offset.top + 'px',
-        left: rect.left + rect.width * 0.5 - this._translation.x - offset.left + 'px',
+        top: rect.top + rect.height * 0.5 - this._translate.y - offset.top + 'px',
+        left: rect.left + rect.width * 0.5 - this._translate.x - offset.left + 'px',
         width: rect.width + 'px',
         height: rect.height + 'px'
       }
@@ -531,22 +534,22 @@ Polymer({
       event.target.classList.add('drag');
       this.$.viewer.classList.add('drag');
       this._origin = {
-        x: this._translation.x,
-        y: this._translation.y
+        x: this._translate.x,
+        y: this._translate.y
       }
     }
 
-    this._translation.x = this._origin.x + event.detail.dx;
-    this._translation.y = this._origin.y + event.detail.dy;
-    this._onBoardMove(this._translation.x, this._translation.y);
+    this._translate.x = this._origin.x + event.detail.dx;
+    this._translate.y = this._origin.y + event.detail.dy;
+    this._onBoardMove(this._translate.x, this._translate.y);
 
     if (event.detail.state == 'end') {
       Array.prototype.forEach.call(this.querySelectorAll('.drag'),
         function(el) {
         el.classList.remove('drag');
       });
-      this._origin.x = this._translation.x;
-      this._origin.y = this._translation.y;
+      this._origin.x = this._translate.x;
+      this._origin.y = this._translate.y;
     }
   },
 
@@ -623,6 +626,7 @@ Polymer({
 
     /* Remove all the filters for the current board */
     this.removeFilter();
+    this._renderShadow();
 
     this._setBoard("");
 
@@ -699,8 +703,8 @@ Polymer({
 
           this.zoom = 0;
           this.scale = 1;
-          this._translation.x = this.offsetWidth * 0.5;
-          this._translation.y = this.offsetHeight * 0.5;
+          this._translate.x = this.offsetWidth * 0.5;
+          this._translate.y = this.offsetHeight * 0.5;
 
           /* Caches the _original (unscaled or translated) bounding rectangle
           * for use when constructing new highlight rectangles */
@@ -1039,6 +1043,7 @@ Polymer({
         filters.removeChild(filters.lastChild);
       }
       this._filters = [];
+      this._renderShadow();
       return;
     }
 
@@ -1063,6 +1068,8 @@ Polymer({
     Array.prototype.forEach.call(matches, function(el) {
       filters.removeChild(el);
     });
+
+    this._renderShadow();
   },
 
   _onFilterUp: function(event) {
@@ -1322,15 +1329,15 @@ Polymer({
           this.scale = this.defaultScale * this.offsetHeight / bb.height;
         }
 
-        this._translation.x = this.offsetWidth * 0.5;
-        this._translation.y = this.offsetHeight * 0.5;
+        this._translate.x = this.offsetWidth * 0.5;
+        this._translate.y = this.offsetHeight * 0.5;
 
         this._firstResize = false;
       }
 
       /* Translate before zoom; zoom will recaluclate the filter div dimensions
-       * from the transformed SVG, including the _translation */
-      this._onBoardMove(this._translation.x, this._translation.y);
+       * from the transformed SVG, including the _translate */
+      this._onBoardMove(this._translate.x, this._translate.y);
       this._onBoardZoom(this._svg, this.zoom);
 
     }, 100);
@@ -1408,11 +1415,11 @@ Polymer({
       Polymer.dom.flush();
 
       var filters = Polymer.dom(this.$.filters),
-        holes = filters.querySelectorAll("div.interactive"),
+        holes = filters.querySelectorAll("div.alwaysVisible"),
         canvas = this.$.shadow,
         ctx = canvas.getContext("2d"),
-        width = this.$.svg.clientWidth,
-        height = this.$.svg.clientHeight;
+        width = this.clientWidth,
+        height = this.clientHeight;
 
       canvas.setAttribute("width", width);
       canvas.setAttribute("height", height);
@@ -1424,17 +1431,22 @@ Polymer({
       this.$.shadow.classList.remove("hidden");
 
       var offset = this.getBoundingClientRect(),
-        rect = canvas.getBoundingClientRect();
+        rect = canvas.getBoundingClientRect(),
+        svgRect = this.$.svg.getBoundingClientRect(),
+        borderWidth = 3;
 
+      ctx.save();
       ctx.fillStyle = 'rgba(20,20,20,1)';
       ctx.fillRect(0, 0, rect.width, rect.height);
+      ctx.translate(this._translate.x - rect.width * 0.5, this._translate.y - rect.height * 0.5);
       for (var i = 0; i < holes.length; i++) {
         ctx.clearRect(
-          rect.width * 0.5 + holes[i].offsetLeft - holes[i].offsetWidth * 0.5,
-          rect.height * 0.5 + holes[i].offsetTop - holes[i].offsetHeight * 0.5,
-          holes[i].offsetWidth,
-          holes[i].offsetHeight);
+          rect.width * 0.5 + holes[i].offsetLeft - holes[i].offsetWidth * 0.5 - borderWidth,
+          rect.height * 0.5 + holes[i].offsetTop - holes[i].offsetHeight * 0.5 - borderWidth,
+          holes[i].offsetWidth + borderWidth * 2,
+          holes[i].offsetHeight + borderWidth * 2);
       }
+      ctx.restore();
     });
   },
 

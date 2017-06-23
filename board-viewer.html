@@ -32,6 +32,14 @@ and start by highlighting the graphic components with keywords or ids matching
 See [board-explorer](https://github.com/board-explorer/board-explorer) for
 information on creating board files.
 
+TODO -- define the states for filters and interaction...
+
+hoverable - non visible unless hovered over / tapped
+visible - displayed (eg. associated / connected) but not interactive
+active - selected; part of the shadow focus box
+
+If any are active, only the active ones are active
+
 @demo demo/index.html Simple demo showing a statically loaded view.
 -->
 
@@ -1196,7 +1204,7 @@ Polymer({
         div.setAttribute('connected', item.implicitConnected.join());
       }
 
-      /* The over class sets opacity to 100% when :hover is
+      /* The hover class sets opacity to 100% when :hover is
        * active on the element and it is set as `interactive`
        * otherwise set to 'bright' for full opacity */
       if (filter.options.interactive) {
@@ -1409,44 +1417,62 @@ Polymer({
 
   _renderShadow: function() {
     this.debounce("render-shadow", function() {
-      Polymer.dom.flush();
-
       var filters = Polymer.dom(this.$.filters),
-        holes = filters.querySelectorAll("div.alwaysVisible"),
+        holes = [],
         canvas = this.$.shadow,
         ctx = canvas.getContext("2d"),
         width = this.clientWidth,
         height = this.clientHeight;
 
-      canvas.setAttribute("width", width);
-      canvas.setAttribute("height", height);
+      holes = this.$.filters.querySelectorAll(".interactive");
+
       if (!holes.length) {
         this.$.shadow.classList.add("hidden");
         return;
       }
 
+      canvas.setAttribute("width", width);
+      canvas.setAttribute("height", height);
+
       this.$.shadow.classList.remove("hidden");
 
       var offset = this.getBoundingClientRect(),
-        rect = canvas.getBoundingClientRect(),
+        canvasRect = canvas.getBoundingClientRect(),
         svgRect = this.$.svg.getBoundingClientRect(),
         borderWidth = 0;
 
       ctx.save();
+      /* Clear the shadow to dark gray */
       ctx.fillStyle = 'rgba(20,20,20,1)';
-      ctx.fillRect(0, 0, rect.width, rect.height);
-      ctx.translate(this._translate.x - rect.width * 0.5, this._translate.y - rect.height * 0.5);
+      ctx.fillRect(0, 0, canvasRect.width, canvasRect.height);
+
+      /* Only draw where the target isn't 0; this will keep shadowsBlur
+       * from drawing over cleared regions from other elements */
+      ctx.globalCompositeOperation = "source-atop";
+
+      /* Translate to the center of the board, and offset for user translation */
+      ctx.translate(this._translate.x - canvasRect.width * 0.5,
+        this._translate.y - canvasRect.height * 0.5);
+
+      /* Enable the shadowBlur */
       ctx.shadowBlur = 10;
       ctx.shadowColor = "yellow";
+
+      /* Set fill style to opaque to draw the shadow */
       ctx.fillStyle = "rgba(0, 0, 0, 1)";
+
       for (var i = 0; i < holes.length; i++) {
         var rect = {
-          left: rect.width * 0.5 + holes[i].offsetLeft - holes[i].offsetWidth * 0.5 - borderWidth,
-          top: rect.height * 0.5 + holes[i].offsetTop - holes[i].offsetHeight * 0.5 - borderWidth,
+          left: canvasRect.width * 0.5 + holes[i].offsetLeft - holes[i].offsetWidth * 0.5 - borderWidth,
+          top: canvasRect.height * 0.5 + holes[i].offsetTop - holes[i].offsetHeight * 0.5 - borderWidth,
           width: holes[i].offsetWidth + borderWidth * 2,
           height: holes[i].offsetHeight + borderWidth * 2
         };
+
+        /* Draw the shadow */
         ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
+
+        /* Clear the inside of the region */
         ctx.clearRect(rect.left, rect.top, rect.width, rect.height);
       }
       ctx.restore();

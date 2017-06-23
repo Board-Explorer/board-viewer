@@ -59,6 +59,7 @@ Done.
 
 You can now publish the project:
 
+  git push origin master
   BASE=/\$(basename \$(pwd))/ ./build.sh
   ./publish.sh
 

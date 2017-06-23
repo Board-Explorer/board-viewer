@@ -245,6 +245,7 @@ Polymer({
       value: false,
       reflectToAttribute: true
     },
+
     /** The board name currently loaded (or loading). This will be loaded
      * out of the *basePath* directory as *basePath/board* */
     board: {
@@ -1660,11 +1661,9 @@ Polymer({
       breaks: false
     });
 
-    /* Element needs to process resize events to rescale if necessary */
-    window.addEventListener('resize', this.resize.bind(this));
-
-    /* Async re-size */
-    this.async(this.resize);
+    if (this.hasAttribute("board")) {
+      this.loadBoard(this.getAttribute("board"));
+    }
   }
 });
 </script>

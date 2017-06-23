@@ -35,7 +35,7 @@ information on creating board files.
 TODO -- define the states for filters and interaction...
 
 hoverable - non visible unless hovered over / tapped
-visible - displayed (eg. associated / connected) but not interactive
+visible - displayed (eg. associated / connected)
 active - selected; part of the shadow focus box
 
 If any are active, only the active ones are active
@@ -122,7 +122,6 @@ If any are active, only the active ones are active
       transition: opacity 0.25s linear;
       border-radius: 0.25rem;
       transform: translate(-50%, -50%);
-      cursor: pointer;
       pointer-events: none;
     }
 
@@ -130,26 +129,47 @@ If any are active, only the active ones are active
       z-index: 200;
     }
 
-    /* Interactive, if not alwaysVisible, are transparent when not hovered */
-    #filters > div.interactive {
+    /* Hoverable, if not visible, are transparent when not hovered */
+    #filters > div.hoverable {
       pointer-events: all;
       opacity: 0;
     }
 
-    /* Hovering over interactive elements makes them full bright */
-    #filters > div.interactive:hover,
-    #filters > div.interactive.alwaysVisible:hover {
+    /* Hovering over hoverable elements makes them full bright */
+    #filters > div.hoverable.hover {
+      cursor: pointer;
       opacity: 1;
     }
 
-    /* alwaysVisible are half dim when not highlighted */
-    #filters > div.alwaysVisible,
-    #filters > div.interactive.alwaysVisible {
+    /* visible are always bright */
+    #filters > div.hoverable.visible,
+    #filters > div.visible {
+      opacity: 1;
+    }
+
+    #filters > div.hoverable.active {
       opacity: 0.5;
+    }
+    #filters > div.hoverable.active.hover {
+      opacity: 1;
+    }
+
+    /* active items are part of the selected group and so
+     * surrounded by the shadow focus. However they are
+     * not visible by themselves (they must be "visible") */
+    #filters > div.visible,
+    #filters > div.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    #filters > div.visible.hover,
+    #filters > div.active.hover {
+      cursor: pointer;
     }
 
     /* Non-interactive and alwaysVisible are always bright */
-    #filters > div.alwaysVisible:not(.interactive) {
+    #filters > div.visible:not(.interactive) {
       opacity: 1;
     }
 
@@ -426,7 +446,7 @@ Polymer({
     if (!Array.isArray(filters)) {
       filters = [ filters ];
     }
-    this.addFilter("selected", filters, {
+    this.addFilter("internal-selected", filters, {
       color: "#ffff00",
       interactive: false,
       alwaysVisible: true
@@ -996,8 +1016,7 @@ Polymer({
     /* Assign default values to the options */
     options = Object.assign({
       color: "#00ff00",
-      alwaysVisible: false,
-      interactive: true
+      hoverable: true
     }, options || {});
 
     if (!this.filterIndex) {
@@ -1205,11 +1224,19 @@ Polymer({
         div.setAttribute('connected', item.implicitConnected.join());
       }
 
-      /* The hover class sets opacity to 100% when :hover is
-       * active on the element and it is set as `interactive`
-       * otherwise set to 'bright' for full opacity */
-      if (filter.options.interactive) {
-        div.classList.add('interactive');
+      /* The hoverable class sets opacity to 100% when .hover is
+       * active on the element. If not hovered, a hoverable item
+       * is not shown unless the `visible` class is triggered */
+      if (filter.options.hoverable) {
+        div.classList.add('hoverable');
+      }
+
+      if (filter.options.visible) {
+        div.classList.add('visible');
+      }
+
+      if (filter.options.active) {
+        div.classList.add('active');
       }
 
       div.setAttribute("pattern", filter.index);
@@ -1218,12 +1245,6 @@ Polymer({
        * goes above components */
       if (isPin) {
         div.setAttribute("pin", true);
-      }
-
-      /* If alwaysVisible is set, the opacity is set to 50%
-      * when the item is not active */
-      if (filter.options.alwaysVisible) {
-        div.classList.add('alwaysVisible');
       }
 
       var rect = svgItem.rect;
@@ -1279,20 +1300,34 @@ Polymer({
   },
 
   _onFilterOver: function(event) {
-    // Highlighting related and connected items bound to the hovered item.
+    /* If there are active elements, only trigger hover on them */
+    var holes = this.$.filters.querySelectorAll(".active"),
+      isActive = false;
+    for (var i = 0; i < holes.length; i++) {
+      if (holes[i] == event.currentTarget) {
+        isActive = true;
+        break;
+      }
+    }
+
+    if (holes.length && !isActive) {
+      return;
+    }
+
+    event.currentTarget.classList.add("hover");
+
+    /* Highlighting related and connected items bound to the hovered item. */
     var connected, related;
     if (connected = event.currentTarget.getAttribute('connected')) {
-      this.addFilter('connected', connected.split(','), {
+      this.addFilter('internal-connected', connected.split(','), {
         color: "#ff8000",
-        alwaysVisible: true,
-        interactive: false
+        visible: true
       });
     }
     if (related = event.currentTarget.getAttribute('related')) {
-      this.addFilter('related', related.split(','), {
+      this.addFilter('internal-related', related.split(','), {
         color: "#00ff00",
-        alwaysVisible: true,
-        interactive: false
+        visible: true
       });
     }
     // Fire the hover action.
@@ -1303,9 +1338,10 @@ Polymer({
   },
 
   _onFilterOut: function(event) {
+    event.currentTarget.classList.remove("hover");
     // Removing items related to the hovered item.
-    this.removeFilter('connected');
-    this.removeFilter('related');
+    this.removeFilter('internal-connected');
+    this.removeFilter('internal-related');
     // Fire the unhover action.
     this.fire('item-hover', {
       in: false,
@@ -1425,7 +1461,7 @@ Polymer({
         width = this.clientWidth,
         height = this.clientHeight;
 
-      holes = this.$.filters.querySelectorAll(".interactive");
+      holes = this.$.filters.querySelectorAll(".active");
 
       if (!holes.length) {
         this.$.shadow.classList.add("hidden");

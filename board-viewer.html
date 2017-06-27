@@ -16,12 +16,21 @@ _translate<link rel="import" href="../polymer/polymer.html">
 <!--
 `<board-viewer>` Provides an interactive hardware board viewer.
 
+There are two functional modes the board-viewer operates in:
+
+1. Interactive. All pins / components are enabled, but none are visible. The
+   user can hover around the board to see pins and their related and/or
+   connected pins, and to activate (click/tap) or select (CTRL+click/tap)
+2. Selection. Interaction is limited to a specific set of pins and their related/
+   connected pins. If disable-shadow is not set, a shadow will obscure all non-active
+   pins.
+
 Example:
 
     <board-viewer
       enable-drag
       enable-zoom
-      filters="I2C,JTAG,J6"
+      selected="I2C,JTAG,J6"
       board="quark_mcu_dev_kit_d2000">
     </board-viewer>
 
@@ -31,12 +40,6 @@ and start by highlighting the graphic components with keywords or ids matching
 
 See [board-explorer](https://github.com/board-explorer/board-explorer) for
 information on creating board files.
-
-TODO -- define the states for filters and interaction...
-
-hoverable - non visible unless hovered over / tapped
-visible - displayed (eg. associated / connected) but not interactive
-active - selected; part of the shadow focus box
 
 If any are active, only the active ones are active
 
@@ -272,8 +275,15 @@ Polymer({
     },
     /** Comma separated list of refdes, keywords, and groups to show.
      * For example: "JTAG,I2C,J6" */
-    filters: {
-      type: String
+    selected: {
+      type: String,
+      reflectToAttribute: true,
+      value: []
+    },
+    /** Disable the shadow while in Active mode */
+    disableShadow: {
+      type: Boolean,
+      value: false
     },
     _translate: {
       type: Object,
@@ -327,8 +337,9 @@ Polymer({
     "_onEnableDrag(enableDrag)",
     "_onEnableZoom(enableZoom)",
     "_mapSvgToBoardData(_svg, _boardData)",
-    "_onFiltersChanged(filters)",
-    "_onDisableAutoResizeChanged(disableAutoResize)"
+    "_onSelectedChanged(selected)",
+    "_onDisableAutoResizeChanged(disableAutoResize)",
+    "_onDisableShadowChanged(disableShadow)"
   ],
 
   behaviors: [
@@ -337,11 +348,21 @@ Polymer({
   ],
 
   listeners: {
+    "tap": "_onTap",
     "iron-resize" : "resize",
     "touchmove": "_onPinch",
     "wheel": "_onScroll",
     "board.response": "_boardLoaded",
     "board.error": "_boardLoadError"
+  },
+
+  _onDisableShadowChanged: function(disableShadow) {
+    this._renderShadow();
+  },
+
+  _onTap: function(event) {
+    /* If the board-viewer is tapped on, clear the selected items */
+    this.selected = [];
   },
 
   _zoomToFit: function() {
@@ -419,17 +440,82 @@ Polymer({
     }
   },
 
-  _onFiltersChanged: function(filters) {
-    if (typeof filters === "string") {
-      filters = filters.split(",");
+  _onSelectedChanged: function(selected) {
+    if (typeof selected === "string") {
+      selected = selected.split(",");
     }
-    if (!Array.isArray(filters)) {
-      filters = [ filters ];
+    if (!Array.isArray(selected)) {
+      selected = [ selected ];
     }
-    this.addFilter("selected", filters, {
+
+    /* If no items are actively selected, turn all items into interactive
+     * hoverable targets */
+    if (selected.length == 0) {
+      console.log("No selection -- adding all items as interactive");
+
+      this.removeFilter("selected");
+      this.removeFilter("selected-connected");
+      this.removeFilter("selected-related");
+
+      /* Turn on the 'Everything' interactive filters;
+       * Pins will be Green
+       * Components will be Cyan */
+      this.addFilter("Pins", { type: "PIN", pattern: "*" }, {
+        color: "#00ffff",
+        alwaysVisible: false
+      });
+
+      this.addFilter("Components", { type: "COMPONENT", pattern: "*" }, {
+        color: "#00ffff",
+        alwaysVisible: false
+      });
+
+      return;
+    }
+
+    this.removeFilter("Pins");
+    this.removeFilter("Components");
+
+    this.addFilter("selected", selected, {
       color: "#ffff00",
-      interactive: false,
+      interactive: true,
       alwaysVisible: true
+    });
+
+    var connected = [], related = [];
+    selected.forEach(function(filter) {
+      var item = this.findComponent(filter);
+      if (!item) {
+        return;
+      }
+
+      /* Walk through the list of connected elements; if not in the list of
+       * connections, add it */
+      for (var i = 0; i < item.implicitConnected.length; i++) {
+        if (connected.indexOf(item.implicitConnected[i]) == -1) {
+          connected.push(item.implicitConnected[i]);
+        }
+      }
+
+      /* Walk through the list of connected elements; if not in the list of
+       * connections, add it */
+      for (var i = 0; i < item.implicitRelated.length; i++) {
+        if (related.indexOf(item.implicitRelated[i]) == -1) {
+          related.push(item.implicitRelated[i]);
+        }
+      }
+    }.bind(this));
+
+    this.addFilter("selected-connected", connected, {
+      color: "#ff8000",
+      alwaysVisible: true,
+      interactive: true
+    });
+
+    this.addFilter("selected-related", related, {
+      color: "#00ff00",
+      alwaysVisible: true,
+      interactive: true
     });
   },
 
@@ -739,6 +825,23 @@ Polymer({
           /* Set this._svg at the end so _mapSvgToBoardData doesn't trigger
            * until the DOM is populated with the SVG */
           this._svg = svg;
+
+          /* If there are no selected items when the board finishes loading,
+           * add the default "no selection, everything interactive" filters */
+          if (!this.selected || !this.selected.length) {
+            /* Turn on the 'Everything' interactive filters;
+             * Pins will be Green
+             * Components will be Cyan */
+            this.addFilter("Pins", { type: "PIN", pattern: "*" }, {
+              color: "#00ffff",
+              alwaysVisible: false
+            });
+
+            this.addFilter("Components", { type: "COMPONENT", pattern: "*" }, {
+              color: "#00ffff",
+              alwaysVisible: false
+            });
+          }
         }.bind(this)
       });
     }.bind(this, this._board);
@@ -762,7 +865,9 @@ Polymer({
       var component = Object.assign({
         refdes: key,
         readable: key,
-        name: key
+        name: key,
+        connected: [],
+        related: []
       }, data[key]);
 
       /* Do not let the JSON override the type */
@@ -793,7 +898,9 @@ Polymer({
             refdes: component.refdes + "Pin" + id,
             readable: readable,
             name: readable,
-            component: component.refdes
+            component: component.refdes,
+            connected: [],
+            related: []
           }, data[key].pins[id]);
 
           /* Do not let the JSON override the type */
@@ -986,6 +1093,10 @@ Polymer({
    * @param {Object} options Style and interaction attributes for this filter.
    */
   addFilter: function(name, match, options) {
+    if (!this._filters) {
+      this._filters = [];
+    }
+
     for (var i = 0; i < this._filters.length; i++) {
       if (this._filters[i].name == name) {
         this.removeFilter(name);
@@ -1041,6 +1152,10 @@ Polymer({
   },
 
   removeFilter: function(name) {
+    if (!this._filters || !this._filters) {
+      return;
+    }
+
     var filters = Polymer.dom(this.$.filters);
 
     if (!name) {
@@ -1197,19 +1312,13 @@ Polymer({
       div.setAttribute('refdes', item.refdes);
 
       /* Add related list of items to an aattibute within the div */
-      if (item.implicitRelated) {
+      if (item.implicitConnected) {
         div.setAttribute('related', item.implicitRelated.join());
       }
+
       /* Add connected list of items to an aattibute within the div */
       if (item.implicitConnected) {
         div.setAttribute('connected', item.implicitConnected.join());
-      }
-
-      /* The hover class sets opacity to 100% when :hover is
-       * active on the element and it is set as `interactive`
-       * otherwise set to 'bright' for full opacity */
-      if (filter.options.interactive) {
-        div.classList.add('interactive');
       }
 
       div.setAttribute("pattern", filter.index);
@@ -1218,6 +1327,13 @@ Polymer({
        * goes above components */
       if (isPin) {
         div.setAttribute("pin", true);
+      }
+
+      /* The hover class sets opacity to 100% when :hover is
+       * active on the element and it is set as `interactive`
+       * otherwise set to 'bright' for full opacity */
+      if (filter.options.interactive) {
+        div.classList.add('interactive');
       }
 
       /* If alwaysVisible is set, the opacity is set to 50%
@@ -1281,6 +1397,9 @@ Polymer({
   _onFilterOver: function(event) {
     // Highlighting related and connected items bound to the hovered item.
     var connected, related;
+
+    /* If no items are actively selected, then show associations to the hovered
+     * pin, otherwise just fire that the pin was hovered over */
     if (connected = event.currentTarget.getAttribute('connected')) {
       this.addFilter('connected', connected.split(','), {
         color: "#ff8000",
@@ -1295,6 +1414,7 @@ Polymer({
         interactive: false
       });
     }
+
     // Fire the hover action.
     this.fire('item-hover', {
       in: true,
@@ -1425,9 +1545,10 @@ Polymer({
         width = this.clientWidth,
         height = this.clientHeight;
 
-      holes = this.$.filters.querySelectorAll(".interactive");
+      /* Render a hole anywhere there is a div in the filters */
+      holes = this.$.filters.querySelectorAll("div");
 
-      if (!holes.length) {
+      if (!this.selected || !this.selected.length || this.disableShadow) {
         this.$.shadow.classList.add("hidden");
         return;
       }

@@ -337,7 +337,7 @@ Polymer({
     "_onEnableDrag(enableDrag)",
     "_onEnableZoom(enableZoom)",
     "_mapSvgToBoardData(_svg, _boardData)",
-    "_onSelectedChanged(selected)",
+    "_onSelectedChanged(selected, _boardData)",
     "_onDisableAutoResizeChanged(disableAutoResize)",
     "_onDisableShadowChanged(disableShadow)"
   ],
@@ -389,6 +389,13 @@ Polymer({
      /* Adjusting bar progres to current zoom value. */
     zoomControl.value = this.zoom;
     this._onBoardZoom(this._svg, this.zoom);
+  },
+
+  setSelected: function(selected) {
+    if (!Array.isArray(selected)) {
+      selected = [ selected ];
+    }
+    this.selected = selected.slice();
   },
 
   _onPinch: function(event) {
@@ -491,6 +498,9 @@ Polymer({
 
       /* Walk through the list of connected elements; if not in the list of
        * connections, add it */
+      if (!item.implicitConnected) {
+        item.implicitConnected = [];
+      }
       for (var i = 0; i < item.implicitConnected.length; i++) {
         if (connected.indexOf(item.implicitConnected[i]) == -1) {
           connected.push(item.implicitConnected[i]);
@@ -499,6 +509,9 @@ Polymer({
 
       /* Walk through the list of connected elements; if not in the list of
        * connections, add it */
+       if (!item.implicitRelated) {
+         item.implicitRelated = [];
+       }
       for (var i = 0; i < item.implicitRelated.length; i++) {
         if (related.indexOf(item.implicitRelated[i]) == -1) {
           related.push(item.implicitRelated[i]);

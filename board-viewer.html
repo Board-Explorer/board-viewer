@@ -1032,30 +1032,62 @@ Polymer({
   getImplicitRelations: function (refdes, type) {
     var relatedRefdes = [];
     /* Walk backward and find if refdes is within a connected/related set,
-    in other component. */
+     * in other component. */
     relatedRefdes = relatedRefdes.concat(this._searchBackReferences(refdes, type));
     /* If we found a previus references we need to still rewalking behind,
-    the references added. */
+     * and search foward for each reference added. */
     var i = 0;
     do {
-      /* Appending previous references */
-      relatedRefdes = relatedRefdes.concat(this._searchBackReferences(relatedRefdes[i], type));
+      var backRefdes = this._searchBackReferences(relatedRefdes[i], type);
+      for (var j = 0; j < backRefdes.length; j++) {
+        if (relatedRefdes.indexOf(backRefdes[j]) == -1 && refdes != backRefdes[j]) {
+          relatedRefdes.push(backRefdes[j]);
+        }
+      }
+      var aheadRefdes = this._searchAheadReferences(relatedRefdes[i], type);
+      for (var j = 0; j < aheadRefdes.length; j++) {
+        if (relatedRefdes.indexOf(aheadRefdes[j]) == -1 && refdes != aheadRefdes[j]) {
+          relatedRefdes.push(aheadRefdes[j]);
+        }
+      }
+
       i++;
     } while(i < relatedRefdes.length);
+
     /* Walking foward */
     var component = this.findComponent(refdes);
     var rels = (type == 'connected') ? component.connected : component.related;
+    var currentIndex = relatedRefdes.length;
     /* If we have an explicit set of related/connected */
     if (rels) {
-      /* Appending inital set, to the previous references. */
-      relatedRefdes = relatedRefdes.concat(rels);
-      i = relatedRefdes.length - rels.length - 1;
+      /* Appending inital set, to the previous references if there are not,
+       * already in the array. */
+      for (var i = 0; i < rels.length; i++) {
+        if (relatedRefdes.indexOf(rels[i]) == -1 && refdes != rels[i]) {
+          relatedRefdes.push(rels[i]);
+        }
+      }
+      /* We start to search from the last position stored */
+      i = currentIndex;
+      /* If we found more references we need to still rewalking ahead,
+       * and search backward for each reference added. */
       do {
-         /* Appending explicit references of foward elements */
-        relatedRefdes = relatedRefdes.concat(this._searchAheadReferences(relatedRefdes[i], type));
+        var backRefdes = this._searchBackReferences(relatedRefdes[i], type);
+        for (var j = 0; j < backRefdes.length; j++) {
+          if (relatedRefdes.indexOf(backRefdes[j]) == -1 && refdes != backRefdes[j]) {
+            relatedRefdes.push(backRefdes[j]);
+          }
+        }
+        var aheadRefdes = this._searchAheadReferences(relatedRefdes[i], type);
+        for (var j = 0; j < aheadRefdes.length; j++) {
+          if (relatedRefdes.indexOf(aheadRefdes[j]) == -1 && refdes != aheadRefdes[j]) {
+            relatedRefdes.push(aheadRefdes[j]);
+          }
+        }
         i++;
       } while(i < relatedRefdes.length);
     }
+
     return relatedRefdes;
   },
 

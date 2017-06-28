@@ -6,7 +6,6 @@ _translate<link rel="import" href="../polymer/polymer.html">
 <link rel="import" href="../iron-icon/iron-icon.html">
 <link rel="import" href="../iron-icons/maps-icons.html">
 <link rel="import" href="../iron-resizable-behavior/iron-resizable-behavior.html">
-
 <script src="../es6-shim/es6-shim.min.js"></script>
 <script src="../mustache.js/mustache.min.js"></script>
 <script src="../markdown-it/dist/markdown-it.js"></script>
@@ -277,7 +276,7 @@ Polymer({
      * For example: "JTAG,I2C,J6" */
     selected: {
       type: String,
-      reflectToAttribute: true,
+      notify: true,
       value: []
     },
     /** Disable the shadow while in Active mode */
@@ -353,7 +352,17 @@ Polymer({
     "touchmove": "_onPinch",
     "wheel": "_onScroll",
     "board.response": "_boardLoaded",
-    "board.error": "_boardLoadError"
+    "board.error": "_boardLoadError",
+    "keydown": "_keyDown",
+    "keyup": "_keyUp"
+  },
+
+  _keyDown: function(event) {
+    console.log("Down: " + event);
+  },
+
+  _keyUp: function(event) {
+    console.log("Up: " + event);
   },
 
   _onDisableShadowChanged: function(disableShadow) {
@@ -480,8 +489,10 @@ Polymer({
       return;
     }
 
-    this.removeFilter("Pins");
-    this.removeFilter("Components");
+    if (!this.multiSelectActive) {
+      this.removeFilter("Pins");
+      this.removeFilter("Components");
+    }
 
     this.addFilter("selected", selected, {
       color: "#ffff00",
@@ -1366,12 +1377,52 @@ Polymer({
       div.addEventListener('mouseout', this._onFilterOut.bind(this));
       div.addEventListener('mousedown', this._onFilterDown.bind(this));
       div.addEventListener('mouseup', this._onFilterUp.bind(this));
+      div.addEventListener('tap', this._onFilterTap.bind(this));
 
       Polymer.dom(this.$.filters).appendChild(div);
     }, this);
 
     Polymer.dom.flush();
     this.updateStyles();
+  },
+
+  /** Toggles an item in or out of the selected group. If control is not
+   * pressed, the group is set to just the tapped item. */
+  _onFilterTap: function(event) {
+    /* Look up the item in the boardData */
+    var item = this.findComponent(event.currentTarget.getAttribute('refdes'));
+    if (!item) {
+      console.log("Tap received for non filter item");
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    /* Look the item up in the selected list */
+    var index = this.selected.indexOf(item.refdes);
+
+    /* If Control is pressed, toggle the state of this item in the
+     * selected group */
+    if (event.detail.sourceEvent.ctrlKey) {
+      this.multiSelectActive = true;
+      if (index == -1) {
+        this.push("selected", item.refdes);
+      } else {
+        this.splice("selected", index, 1);
+      }
+    } else {
+      this.multiSelectActive = false;
+      if (index == -1) {
+        /* Set selected to just this item */
+        this.selected = [ item.refdes ];
+      } else {
+        /* Set selected to none */
+        this.selected = [];
+      }
+    }
+
+    this._onSelectedChanged(this.selected);
   },
 
   getFilteredItems: function(filterName) {
@@ -1561,7 +1612,7 @@ Polymer({
       /* Render a hole anywhere there is a div in the filters */
       holes = this.$.filters.querySelectorAll("div");
 
-      if (!this.selected || !this.selected.length || this.disableShadow) {
+      if (this.multiSelectActive || !this.selected || !this.selected.length || this.disableShadow) {
         this.$.shadow.classList.add("hidden");
         return;
       }

@@ -139,8 +139,8 @@ If any are active, only the active ones are active
     }
 
     /* Hovering over interactive elements makes them full bright */
-    #filters > div.interactive:hover,
-    #filters > div.interactive.alwaysVisible:hover {
+    #filters > div.interactive.hover,
+    #filters > div.interactive.alwaysVisible.hover {
       opacity: 1;
     }
 
@@ -1445,7 +1445,7 @@ Polymer({
         div.setAttribute("pin", true);
       }
 
-      /* The hover class sets opacity to 100% when :hover is
+      /* The hover class sets opacity to 100% when .hover is
        * active on the element and it is set as `interactive`
        * otherwise set to 'bright' for full opacity */
       if (filter.options.interactive) {
@@ -1550,26 +1550,38 @@ Polymer({
     return null;
   },
 
-  _onFilterOver: function(event) {
-    // Highlighting related and connected items bound to the hovered item.
-    var connected, related;
+  setHighlight: function(item) {
+    var active = [], connected = [], related = [];
 
-    /* If no items are actively selected, then show associations to the hovered
-     * pin, otherwise just fire that the pin was hovered over */
-    if (connected = event.currentTarget.getAttribute('connected')) {
-      this.addFilter('connected', connected.split(','), {
+    switch (item.type) {
+    case "pin":
+    case "component":
+      this.addFilter("highlight", item.refdes, {
+        color: "#00ffff",
+        alwaysVisible: true,
+        interactive: false
+      });
+      this.addFilter("connected", item.implicitConnected, {
         color: "#ff8000",
         alwaysVisible: true,
         interactive: false
       });
-    }
-    if (related = event.currentTarget.getAttribute('related')) {
-      this.addFilter('related', related.split(','), {
+      this.addFilter("related", item.implicitRelated, {
         color: "#00ff00",
         alwaysVisible: true,
         interactive: false
       });
+      break;
     }
+  },
+
+  _onFilterOver: function(event) {
+    // Highlighting related and connected items bound to the hovered item.
+    var connected, related;
+
+    event.currentTarget.classList.add("hover");
+
+    this.setHighlight(this.findComponent(event.currentTarget.getAttribute("refdes")));
 
     // Fire the hover action.
     this.fire('item-hover', {
@@ -1579,6 +1591,8 @@ Polymer({
   },
 
   _onFilterOut: function(event) {
+    event.currentTarget.classList.remove("hover");
+
     // Removing items related to the hovered item.
     this.removeFilter('connected');
     this.removeFilter('related');

@@ -139,8 +139,8 @@ If any are active, only the active ones are active
     }
 
     /* Hovering over interactive elements makes them full bright */
-    #filters > div.interactive:hover,
-    #filters > div.interactive.alwaysVisible:hover {
+    #filters > div.interactive.hover,
+    #filters > div.interactive.alwaysVisible.hover {
       opacity: 1;
     }
 
@@ -327,6 +327,14 @@ Polymer({
       value: false
     },
     trackPoints: {
+      type: Array,
+      value: []
+    },
+    keywords: {
+      type: Array,
+      value: []
+    },
+    components: {
       type: Array,
       value: []
     }
@@ -520,9 +528,9 @@ Polymer({
 
       /* Walk through the list of connected elements; if not in the list of
        * connections, add it */
-       if (!item.related) {
-         item.related = [];
-       }
+      if (!item.related) {
+        item.related = [];
+      }
       for (var i = 0; i < item.related.length; i++) {
         if (related.indexOf(item.related[i]) == -1) {
           related.push(item.related[i]);
@@ -879,6 +887,10 @@ Polymer({
     data = data.views.front.components;
     var components = [];
 
+    this.keywords = [];
+
+    /* Walk through all of the components and build item, keywords, and
+     * component data */
     for (var key in data) {
       if (typeof data[key] != 'object') {
         console.log("Skipping non object '" + key + ".'");
@@ -891,20 +903,24 @@ Polymer({
         readable: key,
         name: key,
         connected: [],
+        keywords: [],
         related: []
       }, data[key]);
 
       /* Do not let the JSON override the type */
       component.type = "component";
 
-      if (component.keywords) {
-        for (var i = 0; i < component.keywords.length; i++) {
-          component.keywords[i] = component.keywords[i].toUpperCase();
+      for (var i = 0; i < component.keywords.length; i++) {
+        var keyword = component.keywords[i].toUpperCase();
+        component.keywords[i] = keyword;
+        if (this.keywords.indexOf(keyword) == -1) {
+          this.keywords.push(keyword);
         }
       }
 
       components.push(component);
 
+      /* If the component has pins, then add them */
       if ("pins" in data[key]) {
         component.pins = [];
         for (var id in data[key].pins) {
@@ -924,41 +940,65 @@ Polymer({
             name: readable,
             component: component.refdes,
             connected: [],
-            related: []
+            related: [],
+            keywords: []
           }, data[key].pins[id]);
 
           /* Do not let the JSON override the type */
           item.type = "pin";
 
-          if (item.keywords) {
-            for (var i = 0; i < item.keywords.length; i++) {
-              item.keywords[i] = item.keywords[i].toUpperCase();
+          for (var i = 0; i < item.keywords.length; i++) {
+            var keyword = item.keywords[i].toUpperCase();
 
-              /* Ensure that the parent component is the superset of all
-               * keywords of all contained pins */
-              if (!component.keywords) {
-                component.keywords = [];
-              }
-              if (component.keywords.indexOf(item.keywords[i]) == -1) {
-                component.keywords.push(item.keywords[i]);
-              }
+            item.keywords[i] = keyword;
+
+            /* Ensure that the parent component is the superset of all
+             * keywords of all contained pins */
+            if (component.keywords.indexOf(keyword) == -1) {
+              component.keywords.push(keyword);
             }
 
-            item.keywords = item.keywords.sort();
+            /* If this keyword is not in the global list of keywords, add it */
+            if (this.keywords.indexOf(keyword) == -1) {
+              this.keywords.push(keyword);
+            }
           }
 
-          if (component.keywords) {
-            component.keywords = component.keywords.sort();
-          }
+          item.keywords = item.keywords.sort();
+          component.keywords = component.keywords.sort();
 
           component.pins.push(item);
         }
       }
     }
 
+    /* Set this.keywords to a sorted list of all keywords */
+    this.keywords = this.keywords.sort();
+
+    /* Set this.components to a sorted list of component refdes */
+    var list = [];
+    components.forEach(function(component) {
+      list.push(component.refdes);
+    });
+    /* Sort the components, supporting numerical sorting in names */
+    this.components = list.sort(function(a, b) {
+      var partsA = a.match(/([^0-9]*)([0-9]*)(.*)/),
+        partsB = b.match(/([^0-9]*)([0-9]*)(.*)/),
+        results = partsA[1].localeCompare(partsB[1]);
+      if (results != 0) {
+        return results;
+      }
+      results = partsA[2] - partsB[2];
+      if (results != 0) {
+        return results;
+      }
+      return partsA[3].localeCompare(partsB[3]);
+    });
+
     /* Set _boardData first since findComponent is used when configuring
      * categories. */
     this._boardData = components;
+
     /* Rewalking components to find implicit relationships */
     for (var i = 0; i < this._boardData.length; i ++) {
       var implicitRelations = this.getImplicitRelations(this._boardData[i].refdes);
@@ -994,14 +1034,9 @@ Polymer({
           entry.name = category.name;
           entry.slug = escape(category.name.toLowerCase().replace(/[^\w ]+/g,'').replace(/ +/g,'-'));
 
-          var keywords = [];
-          this.getKeywords(function(results) {
-            keywords = results;
-          });
-
           category.list.forEach(function(term) {
             var item = this.findComponent(term);
-            if (!item && keywords.indexOf(term) == -1) {
+            if (!item && this.keywords.indexOf(term) == -1) {
               console.warn("'" + term + "' listed in category #" + index + " does not exist.");
               return;
             }
@@ -1445,7 +1480,7 @@ Polymer({
         div.setAttribute("pin", true);
       }
 
-      /* The hover class sets opacity to 100% when :hover is
+      /* The hover class sets opacity to 100% when .hover is
        * active on the element and it is set as `interactive`
        * otherwise set to 'bright' for full opacity */
       if (filter.options.interactive) {
@@ -1478,6 +1513,8 @@ Polymer({
     this.updateStyles();
   },
 
+
+
   /** Toggles an item in or out of the selected group. If control is not
    * pressed, the group is set to just the tapped item. */
   _onFilterTap: function(event) {
@@ -1505,13 +1542,8 @@ Polymer({
       }
     } else {
       this.multiSelectActive = false;
-      if (index == -1) {
-        /* Set selected to just this item */
-        this.selected = [ item.refdes ];
-      } else {
-        /* Set selected to none */
-        this.selected = [];
-      }
+      /* Set selected to just this item */
+      this.selected = [ item.refdes ];
     }
 
     this._onSelectedChanged(this.selected);
@@ -1550,42 +1582,98 @@ Polymer({
     return null;
   },
 
-  _onFilterOver: function(event) {
-    // Highlighting related and connected items bound to the hovered item.
-    var connected, related;
+  setHover: function(info) {
+    /* If no hover info is provided, remove all of the "hover" related
+     * filters. */
+    if (!info) {
+      var filters = [];
+      for (var i = 0; i < this._filters.length; i++) {
+        if (this._filters[i].name.indexOf("connected-") == 0 ||
+            this._filters[i].name.indexOf("highlit-") == 0 ||
+            this._filters[i].name.indexOf("related-") == 0) {
+          filters.push(this._filters[i].name);
+        }
+      }
+      filters.forEach(function(name) {
+        this.removeFilter(name);
+      });
+      return;
+    }
 
-    /* If no items are actively selected, then show associations to the hovered
-     * pin, otherwise just fire that the pin was hovered over */
-    if (connected = event.currentTarget.getAttribute('connected')) {
-      this.addFilter('connected', connected.split(','), {
-        color: "#ff8000",
+    Array.prototype.forEach.call(this.$.filters.querySelectorAll('[refdes="'+info.refdes+'"]'),
+      function(item) {
+      item.classList.toggle("hover", info.in);
+    });
+
+    var item = this.findComponent(info.refdes);
+    if (!item) {
+      var index = this.keywords.indexOf(info.refdes);
+      if (index == -1) {
+        console.log(info.refdes + " not found for board " + this.board);
+        return;
+      }
+      item = {
+        refdes: info.refdes,
+        type: "keyword"
+      };
+    }
+
+    /* Turn the highlight for this item on or off based on direction */
+    if (info.in == true) {
+      this.addFilter("highlight-" + item.refdes, item.refdes, {
+        color: "#00ffff",
         alwaysVisible: true,
         interactive: false
       });
+      switch (item.type) {
+      case "pin":
+      case "component":
+        if (item.connected) {
+          this.addFilter("connected-" + item.refdes, item.connected, {
+            color: "#ff8000",
+            alwaysVisible: true,
+            interactive: false
+          });
+        }
+        if (item.related) {
+          this.addFilter("related-" + item.refdes, item.related, {
+            color: "#00ff00",
+            alwaysVisible: true,
+            interactive: false
+          });
+        }
+        break;
+      }
+    } else {
+      this.removeFilter("highlight-" + item.refdes);
+      switch (item.type) {
+      case "pin":
+      case "component":
+        this.removeFilter("connected-" + item.refdes);
+        this.removeFilter("related-" + item.refdes);
+        break;
+      }
     }
-    if (related = event.currentTarget.getAttribute('related')) {
-      this.addFilter('related', related.split(','), {
-        color: "#00ff00",
-        alwaysVisible: true,
-        interactive: false
-      });
-    }
+
+    info.type = item.type;
 
     // Fire the hover action.
-    this.fire('item-hover', {
+    this.fire('item-hover', info);
+  },
+
+  _onFilterOver: function(event) {
+    this.setHover({
+      refdes: event.currentTarget.getAttribute("refdes"),
       in: true,
-      refdes: event.currentTarget.getAttribute('refdes')
+      source: "board-viewer"
     });
   },
 
   _onFilterOut: function(event) {
-    // Removing items related to the hovered item.
-    this.removeFilter('connected');
-    this.removeFilter('related');
-    // Fire the unhover action.
-    this.fire('item-hover', {
+    this.setHover({
+      refdes: event.currentTarget.getAttribute('refdes'),
       in: false,
-      refdes: event.currentTarget.getAttribute('refdes')
+      source: "board-viewer"
     });
   },
 
@@ -1874,61 +1962,12 @@ Polymer({
     });
   },
 
-  getKeywords: function(callback) {
-    if (!callback) {
-      return;
-    }
-
-    var keywords = [];
-
-    function buildKeywords(item) {
-      if ("keywords" in item) {
-        item.keywords.forEach(function(keyword) {
-          if (keywords.indexOf(keyword) == -1) {
-            keywords.push(keyword);
-          }
-        });
-      }
-
-      return keywords;
-    }
-
-    this._boardData.forEach(function(component) {
-      if (component.pins) {
-        component.pins.forEach(buildKeywords);
-      }
-      buildKeywords(component);
-    });
-
-    callback(keywords.sort());
+  getKeywords: function() {
+    return this.keywords;
   },
 
-  getComponents: function(callback) {
-    var components = [];
-    if (!callback) {
-      return;
-    }
-
-    this._boardData.forEach(function(component) {
-      components.push(component.refdes);
-    });
-
-    /* Sort the components, supporting numerical sorting in names */
-    components = components.sort(function(a, b) {
-      var partsA = a.match(/([^0-9]*)([0-9]*)(.*)/),
-        partsB = b.match(/([^0-9]*)([0-9]*)(.*)/),
-        results = partsA[1].localeCompare(partsB[1]);
-      if (results != 0) {
-        return results;
-      }
-      results = partsA[2] - partsB[2];
-      if (results != 0) {
-        return results;
-      }
-      return partsA[3].localeCompare(partsB[3]);
-    });
-
-    callback(components);
+  getComponents: function() {
+    return this.components;
   },
 
   attached: function() {

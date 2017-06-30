@@ -1482,13 +1482,8 @@ Polymer({
       }
     } else {
       this.multiSelectActive = false;
-      if (index == -1) {
-        /* Set selected to just this item */
-        this.selected = [ item.refdes ];
-      } else {
-        /* Set selected to none */
-        this.selected = [];
-      }
+      /* Set selected to just this item */
+      this.selected = [ item.refdes ];
     }
 
     this._onSelectedChanged(this.selected);

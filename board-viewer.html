@@ -509,23 +509,23 @@ Polymer({
 
       /* Walk through the list of connected elements; if not in the list of
        * connections, add it */
-      if (!item.implicitConnected) {
-        item.implicitConnected = [];
+      if (!item.connected) {
+        item.connected = [];
       }
-      for (var i = 0; i < item.implicitConnected.length; i++) {
-        if (connected.indexOf(item.implicitConnected[i]) == -1) {
-          connected.push(item.implicitConnected[i]);
+      for (var i = 0; i < item.connected.length; i++) {
+        if (connected.indexOf(item.connected[i]) == -1) {
+          connected.push(item.connected[i]);
         }
       }
 
       /* Walk through the list of connected elements; if not in the list of
        * connections, add it */
-       if (!item.implicitRelated) {
-         item.implicitRelated = [];
+       if (!item.related) {
+         item.related = [];
        }
-      for (var i = 0; i < item.implicitRelated.length; i++) {
-        if (related.indexOf(item.implicitRelated[i]) == -1) {
-          related.push(item.implicitRelated[i]);
+      for (var i = 0; i < item.related.length; i++) {
+        if (related.indexOf(item.related[i]) == -1) {
+          related.push(item.related[i]);
         }
       }
     }.bind(this));
@@ -962,13 +962,13 @@ Polymer({
     /* Rewalking components to find implicit relationships */
     for (var i = 0; i < this._boardData.length; i ++) {
       var implicitRelations = this.getImplicitRelations(this._boardData[i].refdes);
-      this._boardData[i].implicitRelated = implicitRelations.related;
-      this._boardData[i].implicitConnected = implicitRelations.connected;
+      this._boardData[i].related = implicitRelations.related;
+      this._boardData[i].connected = implicitRelations.connected;
       if (this._boardData[i].pins) {
         for (var j = 0; j < this._boardData[i].pins.length; j ++) {
           implicitRelations = this.getImplicitRelations(this._boardData[i].pins[j].refdes);
-          this._boardData[i].pins[j].implicitRelated = implicitRelations.related;
-          this._boardData[i].pins[j].implicitConnected = implicitRelations.connected;
+          this._boardData[i].pins[j].related = implicitRelations.related;
+          this._boardData[i].pins[j].connected = implicitRelations.connected;
         }
       }
     }
@@ -1428,13 +1428,13 @@ Polymer({
       div.setAttribute('refdes', item.refdes);
 
       /* Add related list of items to an aattibute within the div */
-      if (item.implicitConnected) {
-        div.setAttribute('related', item.implicitRelated.join());
+      if (item.related) {
+        div.setAttribute('related', item.related.join());
       }
 
       /* Add connected list of items to an aattibute within the div */
-      if (item.implicitConnected) {
-        div.setAttribute('connected', item.implicitConnected.join());
+      if (item.connected) {
+        div.setAttribute('connected', item.connected.join());
       }
 
       div.setAttribute("pattern", filter.index);

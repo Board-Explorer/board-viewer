@@ -528,9 +528,9 @@ Polymer({
 
       /* Walk through the list of connected elements; if not in the list of
        * connections, add it */
-       if (!item.related) {
-         item.related = [];
-       }
+      if (!item.related) {
+        item.related = [];
+      }
       for (var i = 0; i < item.related.length; i++) {
         if (related.indexOf(item.related[i]) == -1) {
           related.push(item.related[i]);
@@ -1633,16 +1633,20 @@ Polymer({
       switch (item.type) {
       case "pin":
       case "component":
-        this.addFilter("connected-" + item.refdes, item.implicitConnected, {
-          color: "#ff8000",
-          alwaysVisible: true,
-          interactive: false
-        });
-        this.addFilter("related-" + item.refdes, item.implicitRelated, {
-          color: "#00ff00",
-          alwaysVisible: true,
-          interactive: false
-        });
+        if (item.implicitConnected) {
+          this.addFilter("connected-" + item.refdes, item.implicitConnected, {
+            color: "#ff8000",
+            alwaysVisible: true,
+            interactive: false
+          });
+        }
+        if (item.implicitRelated) {
+          this.addFilter("related-" + item.refdes, item.implicitRelated, {
+            color: "#00ff00",
+            alwaysVisible: true,
+            interactive: false
+          });
+        }
         break;
       }
     } else {

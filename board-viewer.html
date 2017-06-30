@@ -1628,15 +1628,15 @@ Polymer({
       switch (item.type) {
       case "pin":
       case "component":
-        if (item.implicitConnected) {
-          this.addFilter("connected-" + item.refdes, item.implicitConnected, {
+        if (item.connected) {
+          this.addFilter("connected-" + item.refdes, item.connected, {
             color: "#ff8000",
             alwaysVisible: true,
             interactive: false
           });
         }
-        if (item.implicitRelated) {
-          this.addFilter("related-" + item.refdes, item.implicitRelated, {
+        if (item.related) {
+          this.addFilter("related-" + item.refdes, item.related, {
             color: "#00ff00",
             alwaysVisible: true,
             interactive: false

@@ -509,23 +509,23 @@ Polymer({
 
       /* Walk through the list of connected elements; if not in the list of
        * connections, add it */
-      if (!item.implicitConnected) {
-        item.implicitConnected = [];
+      if (!item.connected) {
+        item.connected = [];
       }
-      for (var i = 0; i < item.implicitConnected.length; i++) {
-        if (connected.indexOf(item.implicitConnected[i]) == -1) {
-          connected.push(item.implicitConnected[i]);
+      for (var i = 0; i < item.connected.length; i++) {
+        if (connected.indexOf(item.connected[i]) == -1) {
+          connected.push(item.connected[i]);
         }
       }
 
       /* Walk through the list of connected elements; if not in the list of
        * connections, add it */
-       if (!item.implicitRelated) {
-         item.implicitRelated = [];
+       if (!item.related) {
+         item.related = [];
        }
-      for (var i = 0; i < item.implicitRelated.length; i++) {
-        if (related.indexOf(item.implicitRelated[i]) == -1) {
-          related.push(item.implicitRelated[i]);
+      for (var i = 0; i < item.related.length; i++) {
+        if (related.indexOf(item.related[i]) == -1) {
+          related.push(item.related[i]);
         }
       }
     }.bind(this));
@@ -961,12 +961,14 @@ Polymer({
     this._boardData = components;
     /* Rewalking components to find implicit relationships */
     for (var i = 0; i < this._boardData.length; i ++) {
-      this._boardData[i].implicitRelated = this.getImplicitRelations(this._boardData[i].refdes, 'related');
-      this._boardData[i].implicitConnected = this.getImplicitRelations(this._boardData[i].refdes, 'connected');
+      var implicitRelations = this.getImplicitRelations(this._boardData[i].refdes);
+      this._boardData[i].related = implicitRelations.related;
+      this._boardData[i].connected = implicitRelations.connected;
       if (this._boardData[i].pins) {
         for (var j = 0; j < this._boardData[i].pins.length; j ++) {
-          this._boardData[i].pins[j].implicitRelated = this.getImplicitRelations(this._boardData[i].pins[j].refdes, 'related');
-          this._boardData[i].pins[j].implicitConnected = this.getImplicitRelations(this._boardData[i].pins[j].refdes, 'connected');
+          implicitRelations = this.getImplicitRelations(this._boardData[i].pins[j].refdes);
+          this._boardData[i].pins[j].related = implicitRelations.related;
+          this._boardData[i].pins[j].connected = implicitRelations.connected;
         }
       }
     }
@@ -1029,84 +1031,115 @@ Polymer({
     return false;
   },
 
-  getImplicitRelations: function (refdes, type) {
-    var relatedRefdes = [];
+    getImplicitRelations: function (refdes) {
+    /* Initial state for a give refdes */
+    var relatedRefdes = {
+      connected: [],
+      related: []
+    };
     /* Walk backward and find if refdes is within a connected/related set,
      * in other component. */
-    relatedRefdes = relatedRefdes.concat(this._searchBackReferences(refdes, type));
+    relatedRefdes = this._searchBackReferences(refdes, relatedRefdes);
     /* If we found a previus references we need to still rewalking behind,
      * and search foward for each reference added. */
+
+    /* Rewalking backward connected components */
     var i = 0;
     do {
-      var backRefdes = this._searchBackReferences(relatedRefdes[i], type);
-      for (var j = 0; j < backRefdes.length; j++) {
-        if (relatedRefdes.indexOf(backRefdes[j]) == -1 && refdes != backRefdes[j]) {
-          relatedRefdes.push(backRefdes[j]);
-        }
-      }
-      var aheadRefdes = this._searchAheadReferences(relatedRefdes[i], type);
-      for (var j = 0; j < aheadRefdes.length; j++) {
-        if (relatedRefdes.indexOf(aheadRefdes[j]) == -1 && refdes != aheadRefdes[j]) {
-          relatedRefdes.push(aheadRefdes[j]);
-        }
-      }
-
+      relatedRefdes = this._searchBackReferences(relatedRefdes.connected[i], relatedRefdes);
+      relatedRefdes = this._searchAheadReferences(relatedRefdes.connected[i], relatedRefdes);
       i++;
-    } while(i < relatedRefdes.length);
+    } while(i < relatedRefdes.connected.length);
+
+     /* Rewalking backward related components */
+    var i = 0;
+    do {
+      relatedRefdes = this._searchBackReferences(relatedRefdes.related[i], relatedRefdes);
+      relatedRefdes = this._searchAheadReferences(relatedRefdes.related[i], relatedRefdes);
+      i++;
+    } while(i < relatedRefdes.related.length);
 
     /* Walking foward */
     var component = this.findComponent(refdes);
-    var rels = (type == 'connected') ? component.connected : component.related;
-    var currentIndex = relatedRefdes.length;
-    /* If we have an explicit set of related/connected */
-    if (rels) {
+    var connectedRels =  component.connected;
+    var relatedRels = component.related;
+    var currentRelatedIndex = relatedRefdes.related.length;
+    var currentConnectedIndex = relatedRefdes.connected.length;
+
+    /* If we have an explicit set of connected components */
+    if (connectedRels) {
       /* Appending inital set, to the previous references if there are not,
        * already in the array. */
-      for (var i = 0; i < rels.length; i++) {
-        if (relatedRefdes.indexOf(rels[i]) == -1 && refdes != rels[i]) {
-          relatedRefdes.push(rels[i]);
+      for (var i = 0; i < connectedRels.length; i++) {
+        if (relatedRefdes.connected.indexOf(connectedRels[i]) == -1
+          && refdes != connectedRels[i]) {
+          relatedRefdes.connected.push(connectedRels[i]);
         }
       }
-      /* We start to search from the last position stored */
-      i = currentIndex;
+      /* We start to search from the last position stored for connected array */
+      i = currentConnectedIndex;
       /* If we found more references we need to still rewalking ahead,
        * and search backward for each reference added. */
       do {
-        var backRefdes = this._searchBackReferences(relatedRefdes[i], type);
-        for (var j = 0; j < backRefdes.length; j++) {
-          if (relatedRefdes.indexOf(backRefdes[j]) == -1 && refdes != backRefdes[j]) {
-            relatedRefdes.push(backRefdes[j]);
-          }
-        }
-        var aheadRefdes = this._searchAheadReferences(relatedRefdes[i], type);
-        for (var j = 0; j < aheadRefdes.length; j++) {
-          if (relatedRefdes.indexOf(aheadRefdes[j]) == -1 && refdes != aheadRefdes[j]) {
-            relatedRefdes.push(aheadRefdes[j]);
-          }
-        }
+        relatedRefdes = this._searchBackReferences(relatedRefdes.connected[i], relatedRefdes);
+        relatedRefdes = this._searchAheadReferences(relatedRefdes.connected[i], relatedRefdes);
         i++;
-      } while(i < relatedRefdes.length);
+      } while(i < relatedRefdes.connected.length);
+    }
+
+    /* If we have an explicit set of related components */
+    if (relatedRels) {
+      /* Appending inital set, to the previous references if there are not,
+       * already in the array. */
+      for (var i = 0; i < relatedRels.length; i++) {
+        if (relatedRefdes.related.indexOf(relatedRels[i]) == -1 &&
+          refdes != relatedRels[i]) {
+          relatedRefdes.related.push(relatedRels[i]);
+        }
+      }
+      /* We start to search from the last position stored for related array */
+      i = currentRelatedIndex;
+      /* If we found more references we need to still rewalking ahead,
+       * and search backward for each reference added. */
+      do {
+        relatedRefdes = this._searchBackReferences(relatedRefdes.related[i], relatedRefdes);
+        relatedRefdes = this._searchAheadReferences(relatedRefdes.related[i], relatedRefdes);
+        i++;
+      } while(i < relatedRefdes.related.length);
     }
 
     return relatedRefdes;
   },
 
-  _searchBackReferences: function(refdes, type) {
-    var components =  this._boardData, relatedRefdes = [];
+  _searchBackReferences: function(refdes, currentState) {
+    var components =  this._boardData, relatedRefdes = currentState;
     for (var i = 0; i < components.length; i++) {
-      /* We get the set to start find the refdes within */
-      var rels = (type == 'connected') ? components[i].connected : components[i].related;
-      /* The component has the refdes in the set, then add the refdes into the array */
-      if (rels && rels.indexOf(refdes) != -1) {
-        relatedRefdes.push(components[i].refdes);
+      /* We get the connected and related set's to start find the refdes within */
+      var connected = components[i].connected;
+      var related = components[i].related;
+      /* Adding connected if there are not in the cuurent state */
+      if (connected && connected.indexOf(refdes) != -1 &&
+        relatedRefdes.connected.indexOf(components[i].refdes) == -1) {
+        relatedRefdes.connected.push(components[i].refdes);
+      }
+      /* Adding related if there are not in the cuurent state */
+      if (related && related.indexOf(refdes) != -1 &&
+        relatedRefdes.related.indexOf(components[i].refdes) == -1) {
+        relatedRefdes.related.push(components[i].refdes);
       }
       /* If the component have pins, do the same on them */
       if (components[i].pins) {
         var pins =  components[i].pins;
         for (var j = 0; j < pins.length; j++) {
-          rels = (type == 'connected') ? pins[j].connected : rels = pins[j].related;;
-          if (rels && rels.indexOf(refdes) != -1) {
-            relatedRefdes.push(pins[j].refdes);
+          connected = pins[j].connected;
+          related = pins[j].related;
+          if (connected && connected.indexOf(refdes) != -1 &&
+            relatedRefdes.connected.indexOf(pins[j].refdes) == -1) {
+            relatedRefdes.connected.push(pins[j].refdes);
+          }
+          if (related && related.indexOf(refdes) != -1 &&
+            relatedRefdes.related.indexOf(pins[j].refdes) == -1) {
+            relatedRefdes.related.push(pins[j].refdes);
           }
         }
       }
@@ -1114,21 +1147,48 @@ Polymer({
     return relatedRefdes;
   },
 
-  _searchAheadReferences: function(refdes, type) {
-    var component = this.findComponent(refdes), relatedRefdes = [];
-    /* Only if we found a connected set */
+  _searchAheadReferences: function(refdes, currentState) {
+    var component = this.findComponent(refdes), relatedRefdes = currentState;
+    /* Only if we found the component */
     if (component) {
-      var rels = (type == 'connected') ? component.connected : component.related;
-      if (rels) {
-        relatedRefdes = relatedRefdes.concat(rels);
+      /* We get the connected and related set's to start find the refdes within */
+      var connected = component.connected;
+      var related = component.related;
+      /* Adding connected if there are not in the cuurent state */
+      if (connected) {
+        for (var i = 0; i < connected.length; i++) {
+          if (relatedRefdes.connected.indexOf(connected[i]) == -1){
+            relatedRefdes.connected.push(connected[i]);
+          }
+        }
+      }
+       /* Adding related if there are not in the cuurent state */
+      if (related) {
+        for (var i = 0; i < related.length; i++) {
+          if (relatedRefdes.related.indexOf(related[i]) == -1){
+            relatedRefdes.related.push(related[i]);
+          }
+        }
       }
       /* If the component have pins, do the same */
       if (component.pins) {
         var pins =  component.pins;
         for (var j = 0; j < component.pins.length; j++) {
-          rels = (type == 'connected') ? pins.connected : pins.related;
-          if (rels) {
-            relatedRefdes = relatedRefdes.concat(rels);
+          connected = pins.connected;
+          related = pins.related;
+          if (connected) {
+            for (var i = 0; i < connected.length; i++) {
+              if (relatedRefdes.connected.indexOf(connected[i]) == -1){
+                relatedRefdes.connected.push(connected[i]);
+              }
+            }
+          }
+          if (related) {
+            for (var i = 0; i < related.length; i++) {
+              if (relatedRefdes.related.indexOf(related[i]) == -1){
+                relatedRefdes.related.push(related[i]);
+              }
+            }
           }
         }
       }
@@ -1368,13 +1428,13 @@ Polymer({
       div.setAttribute('refdes', item.refdes);
 
       /* Add related list of items to an aattibute within the div */
-      if (item.implicitConnected) {
-        div.setAttribute('related', item.implicitRelated.join());
+      if (item.related) {
+        div.setAttribute('related', item.related.join());
       }
 
       /* Add connected list of items to an aattibute within the div */
-      if (item.implicitConnected) {
-        div.setAttribute('connected', item.implicitConnected.join());
+      if (item.connected) {
+        div.setAttribute('connected', item.connected.join());
       }
 
       div.setAttribute("pattern", filter.index);

@@ -267,6 +267,12 @@ Polymer({
       type: Number,
       value: 0.8
     },
+    /** The current refdes that is being hovered over. There can only be
+     * one hovered refdes at a time. */
+    hover: {
+      type: String,
+      value: null
+    },
     /** Base path for loading meta-data files */
     basePath: {
       type: String,
@@ -380,6 +386,13 @@ Polymer({
   _onTap: function(event) {
     /* If the board-viewer is tapped on, clear the selected items */
     this.selected = [];
+    if (this.hover) {
+      this.setHover({
+        refdes: this.hover,
+        in: false,
+        source: "board-viewer"
+      });
+    }
   },
 
   _zoomToFit: function() {
@@ -654,7 +667,6 @@ Polymer({
   },
 
   _onTrack: function(event) {
-    this.tapTarget = null;
     event.preventDefault();
 
     if (event.detail.state == 'start') {
@@ -1344,18 +1356,6 @@ Polymer({
     this._renderShadow();
   },
 
-  _onFilterUp: function(event) {
-    if (this.tapTarget) {
-      this.fire('item-tap', { refdes: this.tapTarget, event: event });
-    }
-    event.preventDefault();
-  },
-
-  _onFilterDown: function(event) {
-    this.tapTarget = event.currentTarget.getAttribute('refdes');
-    event.preventDefault();
-  },
-
   /* Create all of the DIV elements that match the declared filter */
   _populateFilter: function(filter) {
     /* Delete all elements in the filter */
@@ -1502,8 +1502,6 @@ Polymer({
       div.style.height = rect.height;
       div.addEventListener('mouseover', this._onFilterOver.bind(this));
       div.addEventListener('mouseout', this._onFilterOut.bind(this));
-      div.addEventListener('mousedown', this._onFilterDown.bind(this));
-      div.addEventListener('mouseup', this._onFilterUp.bind(this));
       div.addEventListener('tap', this._onFilterTap.bind(this));
 
       Polymer.dom(this.$.filters).appendChild(div);
@@ -1513,7 +1511,21 @@ Polymer({
     this.updateStyles();
   },
 
+  _onFilterOver: function(event) {
+    this.setHover({
+      refdes: event.currentTarget.getAttribute("refdes"),
+      in: true,
+      source: "board-viewer"
+    });
+  },
 
+  _onFilterOut: function(event) {
+    this.setHover({
+      refdes: event.currentTarget.getAttribute('refdes'),
+      in: false,
+      source: "board-viewer"
+    });
+  },
 
   /** Toggles an item in or out of the selected group. If control is not
    * pressed, the group is set to just the tapped item. */
@@ -1547,6 +1559,8 @@ Polymer({
     }
 
     this._onSelectedChanged(this.selected);
+
+    this.fire('item-tap', { refdes: item.refdes, event: event });
   },
 
   getFilteredItems: function(filterName) {
@@ -1582,21 +1596,31 @@ Polymer({
     return null;
   },
 
+  _clearHover: function() {
+    if (!this.hover) {
+      return;
+    }
+    var item = this.findComponent(this.hover);
+
+    this.hover = null;
+
+    this.setHover({
+      refdes: item.refdes,
+      type: item.type,
+      in: false,
+      source: "board-viewer"
+    });
+  },
+
   setHover: function(info) {
-    /* If no hover info is provided, remove all of the "hover" related
-     * filters. */
+    /* If no hover info is provided, clear the current hover if set */
     if (!info) {
-      var filters = [];
-      for (var i = 0; i < this._filters.length; i++) {
-        if (this._filters[i].name.indexOf("connected-") == 0 ||
-            this._filters[i].name.indexOf("highlit-") == 0 ||
-            this._filters[i].name.indexOf("related-") == 0) {
-          filters.push(this._filters[i].name);
-        }
-      }
-      filters.forEach(function(name) {
-        this.removeFilter(name);
-      });
+      this._clearHover();
+      return;
+    }
+
+    /* If there is an active hover and this is the same, just return. */
+    if (info.in && info.refdes == this.hover) {
       return;
     }
 
@@ -1605,6 +1629,8 @@ Polymer({
       item.classList.toggle("hover", info.in);
     });
 
+    /* If the item provided is not a componnent/pin, it must be a
+     * keyword */
     var item = this.findComponent(info.refdes);
     if (!item) {
       var index = this.keywords.indexOf(info.refdes);
@@ -1620,7 +1646,7 @@ Polymer({
 
     /* Turn the highlight for this item on or off based on direction */
     if (info.in == true) {
-      this.addFilter("highlight-" + item.refdes, item.refdes, {
+      this.addFilter("highlight", item.refdes, {
         color: "#00ffff",
         alwaysVisible: true,
         interactive: false
@@ -1629,14 +1655,14 @@ Polymer({
       case "pin":
       case "component":
         if (item.connected) {
-          this.addFilter("connected-" + item.refdes, item.connected, {
+          this.addFilter("highlight-connected", item.connected, {
             color: "#ff8000",
             alwaysVisible: true,
             interactive: false
           });
         }
         if (item.related) {
-          this.addFilter("related-" + item.refdes, item.related, {
+          this.addFilter("highlight-related", item.related, {
             color: "#00ff00",
             alwaysVisible: true,
             interactive: false
@@ -1645,12 +1671,12 @@ Polymer({
         break;
       }
     } else {
-      this.removeFilter("highlight-" + item.refdes);
+      this.removeFilter("highlight" + item.refdes);
       switch (item.type) {
       case "pin":
       case "component":
-        this.removeFilter("connected-" + item.refdes);
-        this.removeFilter("related-" + item.refdes);
+        this.removeFilter("highlight-connected" + item.refdes);
+        this.removeFilter("highlight-related" + item.refdes);
         break;
       }
     }
@@ -1659,22 +1685,6 @@ Polymer({
 
     // Fire the hover action.
     this.fire('item-hover', info);
-  },
-
-  _onFilterOver: function(event) {
-    this.setHover({
-      refdes: event.currentTarget.getAttribute("refdes"),
-      in: true,
-      source: "board-viewer"
-    });
-  },
-
-  _onFilterOut: function(event) {
-    this.setHover({
-      refdes: event.currentTarget.getAttribute('refdes'),
-      in: false,
-      source: "board-viewer"
-    });
   },
 
   resize: function() {

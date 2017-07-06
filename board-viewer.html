@@ -729,6 +729,23 @@ Polymer({
     return null;
   },
 
+  /* Return a category object.
+   *
+   * @param {String} category slug.
+   */
+  findCategory: function(slug) {
+    var category = null;
+    if (slug) {
+      for (var i = 0; i < this._categories.length; i++) {
+        if (this._categories[i].slug == slug.toLowerCase()) {
+          category = this._categories[i];
+          break;
+        }
+      }
+    }
+    return category;
+  },
+
   /** Load a new board.
    *
    * @param {String} board The name of the board to load.
@@ -1031,8 +1048,10 @@ Polymer({
             return;
           }
 
+          entry.type = "category";
           entry.name = category.name;
           entry.slug = escape(category.name.toLowerCase().replace(/[^\w ]+/g,'').replace(/ +/g,'-'));
+          entry.refdes = entry.slug;
 
           category.list.forEach(function(term) {
             var item = this.findComponent(term);
@@ -1604,6 +1623,20 @@ Polymer({
       function(item) {
       item.classList.toggle("hover", info.in);
     });
+
+    if (info.type == "category") {
+      var category = this.findCategory(info.refdes);
+      if (info.in == true) {
+        this.addFilter("highlight-" + category.slug, category, {
+          color: "#00ffff",
+          alwaysVisible: true,
+          interactive: false
+        });
+      } else {
+        this.removeFilter("highlight-" + category.slug);
+      }
+      return;
+    }
 
     var item = this.findComponent(info.refdes);
     if (!item) {

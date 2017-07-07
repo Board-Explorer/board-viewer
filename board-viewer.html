@@ -480,6 +480,7 @@ Polymer({
       this.removeFilter("selected");
       this.removeFilter("selected-connected");
       this.removeFilter("selected-related");
+      this.removeFilter("selected-pins");
 
       /* Turn on the 'Everything' interactive filters;
        * Pins will be Green
@@ -508,13 +509,21 @@ Polymer({
       alwaysVisible: true
     });
 
-    var connected = [], related = [];
+    var connected = [], related = [], pins = [];
     selected.forEach(function(filter) {
       var item = this.findComponent(filter);
       if (!item) {
         return;
       }
 
+      if (!item.pins) {
+        item.pins = [];
+      }
+      for (var i = 0; i < item.pins.length; i++) {
+        if (pins.indexOf(item.pins[i].refdes) == -1) {
+          pins.push(item.pins[i].refdes);
+        }
+      }
       /* Walk through the list of connected elements; if not in the list of
        * connections, add it */
       if (!item.connected) {
@@ -537,6 +546,11 @@ Polymer({
         }
       }
     }.bind(this));
+
+    this.addFilter("selected-pins", pins, {
+      color: "#00ffff",
+      alwaysVisible: false
+    });
 
     this.addFilter("selected-connected", connected, {
       color: "#ff8000",
@@ -1584,6 +1598,7 @@ Polymer({
     matches.forEach(function(item) {
       fiteredItems.push(item.getAttribute('refdes'));
     });
+
     return fiteredItems;
   },
 

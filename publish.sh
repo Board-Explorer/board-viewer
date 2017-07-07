@@ -1,6 +1,6 @@
 #!/bin/bash
 [ ! -d build/default ] && {
-  echo "Run ./build.sh first."
+  echo "Run 'polymer build' first."
   exit -1
 }
 
@@ -50,6 +50,3 @@ git commit -am 'seed gh-pages'
 git push -u origin gh-pages --force
 
 cd ..
-
-
-

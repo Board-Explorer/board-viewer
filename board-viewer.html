@@ -721,13 +721,14 @@ Polymer({
       return null;
     }
 
-    var parts = refdes.split("Pin"),
+    refdes = refdes.toUpperCase();
+    var parts = refdes.split("PIN"),
       isPin = parts.length == 2,
       component = null;
 
     /* Look up the component first */
     for (var i = 0; i < this._boardData.length; i++) {
-      if (this._boardData[i].refdes == parts[0]) {
+      if (this._boardData[i].refdes.toUpperCase() == parts[0]) {
         component = this._boardData[i];
         break;
       }
@@ -750,10 +751,12 @@ Polymer({
 
     /* Look for the pin in this component */
     for (var i = 0; i < component.pins.length; i++) {
-      if (component.pins[i].refdes == refdes) {
+      if (component.pins[i].refdes.toUpperCase() == refdes) {
         return component.pins[i];
       }
     }
+
+
 
     /* No matches anywhere... return null */
     return null;
@@ -766,8 +769,9 @@ Polymer({
   findCategory: function(slug) {
     var category = null;
     if (slug) {
+      slug = slug.toUpperCase();
       for (var i = 0; i < this._categories.length; i++) {
-        if (this._categories[i].slug == slug.toLowerCase()) {
+        if (this._categories[i].slug.toUpperCase() === slug) {
           category = this._categories[i];
           break;
         }
@@ -1256,7 +1260,7 @@ Polymer({
       if (related) {
         for (var i = 0; i < related.length; i++) {
           if (relatedRefdes.related.indexOf(related[i]) == -1 &&
-            currentState.refdes != related[i]){
+            currentState.refdes != related[i]) {
             relatedRefdes.related.push(related[i]);
           }
         }
@@ -1428,7 +1432,6 @@ Polymer({
     }
 
     var potentials = [];
-
     /* Walk the list of items in the SVG that match the BV_ prefix
      * and compare them to the filter pattern; if it is a match,
      * create a <DIV> in the filter layer */
@@ -1459,12 +1462,12 @@ Polymer({
         match |= filter.match.pattern == '*';
 
         /* Check the REFDES against the pattern */
-        match |= svgItem.refdes == filter.match.pattern;
+        match |= svgItem.refdes.toUpperCase() === filter.match.pattern.toUpperCase();
 
         /* Check the KEYWORDS agsint the pattern */
         if (item && item.keywords) {
           for (var i = 0; !match && i < item.keywords.length; i++) {
-            match |= item.keywords[i] == filter.match.pattern;
+            match |= item.keywords[i].toUpperCase() === filter.match.pattern.toUpperCase();
           }
         }
         break;
@@ -1475,12 +1478,12 @@ Polymer({
          * match against */
         for (var i = 0; i < filter.match.pattern.length; i++) {
           /* Check the REFDES against the set entry */
-          match |= svgItem.refdes == filter.match.pattern[i];
+          match |= svgItem.refdes.toUpperCase() === filter.match.pattern[i].toUpperCase();
 
           /* Check the KEYWORDS agsint the set entry */
           if (item && item.keywords) {
             for (var j = 0; !match && j < item.keywords.length; j++) {
-              match |= item.keywords[j] == filter.match.pattern[i];
+              match |= item.keywords[j].toUpperCase() === filter.match.pattern[i].toUpperCase();
             }
           }
           if (match) {

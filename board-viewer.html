@@ -1256,7 +1256,7 @@ Polymer({
       if (related) {
         for (var i = 0; i < related.length; i++) {
           if (relatedRefdes.related.indexOf(related[i]) == -1 &&
-            currentState.refdes != connected[i]){
+            currentState.refdes != related[i]){
             relatedRefdes.related.push(related[i]);
           }
         }

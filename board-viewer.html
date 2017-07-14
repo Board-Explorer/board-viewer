@@ -1050,19 +1050,8 @@ Polymer({
      * categories. */
     this._boardData = components;
 
-    /* Rewalking components to find implicit relationships */
-    for (var i = 0; i < this._boardData.length; i ++) {
-      var implicitRelations = this.getImplicitRelations(this._boardData[i].refdes);
-      this._boardData[i].related = implicitRelations.related;
-      this._boardData[i].connected = implicitRelations.connected;
-      if (this._boardData[i].pins) {
-        for (var j = 0; j < this._boardData[i].pins.length; j ++) {
-          implicitRelations = this.getImplicitRelations(this._boardData[i].pins[j].refdes);
-          this._boardData[i].pins[j].related = implicitRelations.related;
-          this._boardData[i].pins[j].connected = implicitRelations.connected;
-        }
-      }
-    }
+    this._boardData = this.updateComponents(this._boardData);
+
 
     var categories = [];
     if (categoryList) {
@@ -1119,178 +1108,225 @@ Polymer({
     return false;
   },
 
-    getImplicitRelations: function (refdes) {
-    /* Initial state for a give refdes */
-    var relatedRefdes = {
-      refdes: refdes,
-      connected: [],
-      related: []
-    };
-    /* Walk backward and find if refdes is within a connected/related set,
-     * in other component. */
-    relatedRefdes = this._searchBackReferences(refdes, relatedRefdes);
-    /* If we found a previus references we need to still rewalking behind,
-     * and search foward for each reference added. */
-
-    /* Rewalking backward connected components */
-    var i = 0;
-    do {
-      relatedRefdes = this._searchBackReferences(relatedRefdes.connected[i], relatedRefdes);
-      relatedRefdes = this._searchAheadReferences(relatedRefdes.connected[i], relatedRefdes);
-      i++;
-    } while(i < relatedRefdes.connected.length);
-
-     /* Rewalking backward related components */
-    var i = 0;
-    do {
-      relatedRefdes = this._searchBackReferences(relatedRefdes.related[i], relatedRefdes);
-      relatedRefdes = this._searchAheadReferences(relatedRefdes.related[i], relatedRefdes);
-      i++;
-    } while(i < relatedRefdes.related.length);
-
-    /* Walking foward */
-    var component = this.findComponent(refdes);
-    var connectedRels =  component.connected;
-    var relatedRels = component.related;
-    var currentRelatedIndex = relatedRefdes.related.length;
-    var currentConnectedIndex = relatedRefdes.connected.length;
-
-    /* If we have an explicit set of connected components */
-    if (connectedRels) {
-      /* Appending inital set, to the previous references if there are not,
-       * already in the array. */
-      for (var i = 0; i < connectedRels.length; i++) {
-        if (relatedRefdes.connected.indexOf(connectedRels[i]) == -1
-          && refdes != connectedRels[i]) {
-          relatedRefdes.connected.push(connectedRels[i]);
+  updateComponents: function(components) {
+    /* Build connected aliases, (A => C => B) := (ABC). */
+    for (var i = 0; i < components.length; i ++) {
+      components[i].connected = this._getConnectedAlias(components[i]);
+      if (components[i].pins) {
+        for (var j = 0; j < components[i].pins.length; j ++) {
+          components[i].pins[j].connected = this._getConnectedAlias(components[i].pins[j]);
         }
       }
-      /* We start to search from the last position stored for connected array */
-      i = currentConnectedIndex;
-      /* If we found more references we need to still rewalking ahead,
-       * and search backward for each reference added. */
-      do {
-        relatedRefdes = this._searchBackReferences(relatedRefdes.connected[i], relatedRefdes);
-        relatedRefdes = this._searchAheadReferences(relatedRefdes.connected[i], relatedRefdes);
-        i++;
-      } while(i < relatedRefdes.connected.length);
     }
 
-    /* If we have an explicit set of related components */
-    if (relatedRels) {
-      /* Appending inital set, to the previous references if there are not,
-       * already in the array. */
-      for (var i = 0; i < relatedRels.length; i++) {
-        if (relatedRefdes.related.indexOf(relatedRels[i]) == -1 &&
-          refdes != relatedRels[i]) {
-          relatedRefdes.related.push(relatedRels[i]);
+    /* Propagete relations in each component whitin an connected alias,
+     * (AC => B) := (A => B, C => B).  */
+    for (var i = 0; i < components.length; i ++) {
+      components[i].related = this._propagateRelations(components[i]);
+      if (components[i].pins) {
+        for (var j = 0; j < components[i].pins.length; j ++) {
+          components[i].pins[j].related = this._propagateRelations(components[i].pins[j]);
         }
       }
-      /* We start to search from the last position stored for related array */
-      i = currentRelatedIndex;
-      /* If we found more references we need to still rewalking ahead,
-       * and search backward for each reference added. */
-      do {
-        relatedRefdes = this._searchBackReferences(relatedRefdes.related[i], relatedRefdes);
-        relatedRefdes = this._searchAheadReferences(relatedRefdes.related[i], relatedRefdes);
-        i++;
-      } while(i < relatedRefdes.related.length);
     }
 
-    return relatedRefdes;
+    /* Get reverse relations, (A => B) := (B => A). */
+    for (var i = 0; i < components.length; i ++) {
+      components[i].related = this._getReverseRelations(components[i]);
+      if (components[i].pins) {
+        for (var j = 0; j < components[i].pins.length; j ++) {
+          components[i].pins[j].related = this._getReverseRelations(components[i].pins[j]);
+        }
+      }
+    }
+
+    /* Clean self references. */
+    for (var i = 0; i < components.length; i ++) {
+      components[i].connected.shift();
+      if (components[i].pins) {
+        for (var j = 0; j < components[i].pins.length; j ++) {
+          components[i].pins[j].connected.shift();
+        }
+      }
+    }
+
+    return components;
   },
 
-  _searchBackReferences: function(refdes, currentState) {
-    var components =  this._boardData, relatedRefdes = currentState;
+  _getConnectedAlias: function (component) {
+    var connections = component.connected ? component.connected : [], i;
+    /* Append the self reference to complete the whole connected alias,
+     * once all componets are updated remove it. */
+    connections.unshift(component.refdes);
+    /* Get components that are connected to the current conections,
+     * And repeat while getting more connections. */
+    i = 0;
+    do {
+      connections = this._searchBackConnections(connections[i], connections);
+      i++;
+    } while(i < connections.length);
+    i = 0;
+    do {
+      connections = this._searchFowardConnections(connections[i], connections);
+      i++;
+    } while(i < connections.length);
+
+    return connections;
+  },
+
+  _searchBackConnections: function(refdes, currentConnections) {
+    /* Look all components and find those components that are connected,
+     * To the refes given. */
+    var components =  this._boardData, connections = currentConnections;
     for (var i = 0; i < components.length; i++) {
-      /* We get the connected and related set's to start find the refdes within */
       var connected = components[i].connected;
-      var related = components[i].related;
-      /* Adding connected if there are not in the cuurent state */
-      if (connected && connected.indexOf(refdes) != -1 &&
-        relatedRefdes.connected.indexOf(components[i].refdes) == -1 &&
-        currentState.refdes != components[i].refdes) {
-        relatedRefdes.connected.push(components[i].refdes);
-      }
-      /* Adding related if there are not in the cuurent state */
-      if (related && related.indexOf(refdes) != -1 &&
-        relatedRefdes.related.indexOf(components[i].refdes) == -1 &&
-        currentState.refdes != components[i].refdes) {
-        relatedRefdes.related.push(components[i].refdes);
+      /* Adding the component if there are not in the current connections set */
+      if (connected && connected.indexOf(refdes) != -1
+        && connections.indexOf(components[i].refdes) == -1) {
+        connections.push(components[i].refdes);
       }
       /* If the component have pins, do the same on them */
       if (components[i].pins) {
         var pins =  components[i].pins;
         for (var j = 0; j < pins.length; j++) {
           connected = pins[j].connected;
-          related = pins[j].related;
-          if (connected && connected.indexOf(refdes) != -1 &&
-            relatedRefdes.connected.indexOf(pins[j].refdes) == -1 &&
-            currentState.refdes != pins[j].refdes) {
-            relatedRefdes.connected.push(pins[j].refdes);
-          }
-          if (related && related.indexOf(refdes) != -1 &&
-            relatedRefdes.related.indexOf(pins[j].refdes) == -1 &&
-            currentState.refdes != pins[j].refdes) {
-            relatedRefdes.related.push(pins[j].refdes);
+          if (connected && connected.indexOf(refdes) != -1
+            && connections.indexOf(pins[j].refdes) == -1) {
+            connections.push(pins[j].refdes);
           }
         }
       }
     }
-    return relatedRefdes;
+
+    return connections;
   },
 
-  _searchAheadReferences: function(refdes, currentState) {
-    var component = this.findComponent(refdes), relatedRefdes = currentState;
-    /* Only if we found the component */
+  _searchFowardConnections: function(refdes, currentConnections) {
+    var component = this.findComponent(refdes), connections = currentConnections;
+    /* Only if we found the component. */
     if (component) {
-      /* We get the connected and related set's to start find the refdes within */
+      /* Get the connected set to start to find the refdes within. */
       var connected = component.connected;
-      var related = component.related;
-      /* Adding connected if there are not in the cuurent state */
+      /* Walk connected set and all those refdes which are not,
+       * in the current connections. */
       if (connected) {
         for (var i = 0; i < connected.length; i++) {
-          if (relatedRefdes.connected.indexOf(connected[i]) == -1 &&
-            currentState.refdes != connected[i]){
-            relatedRefdes.connected.push(connected[i]);
+          if (connections.indexOf(connected[i]) == -1){
+            connections.push(connected[i]);
           }
         }
       }
-       /* Adding related if there are not in the cuurent state */
-      if (related) {
-        for (var i = 0; i < related.length; i++) {
-          if (relatedRefdes.related.indexOf(related[i]) == -1 &&
-            currentState.refdes != related[i]) {
-            relatedRefdes.related.push(related[i]);
-          }
-        }
-      }
-      /* If the component have pins, do the same */
+      /* If the component have pins, do the same. */
       if (component.pins) {
         var pins =  component.pins;
         for (var j = 0; j < component.pins.length; j++) {
           connected = pins.connected;
-          related = pins.related;
           if (connected) {
             for (var i = 0; i < connected.length; i++) {
-              if (relatedRefdes.connected.indexOf(connected[i]) == -1 &&
-                currentState.refdes != connected[i]){
-                relatedRefdes.connected.push(connected[i]);
-              }
-            }
-          }
-          if (related) {
-            for (var i = 0; i < related.length; i++) {
-              if (relatedRefdes.related.indexOf(related[i]) == -1 &&
-                currentState.refdes != related[i]){
-                relatedRefdes.related.push(related[i]);
+              if (connections.indexOf(connected[i]) == -1){
+                connections.push(connected[i]);
               }
             }
           }
         }
       }
     }
-    return relatedRefdes;
+    return connections;
+  },
+
+  _propagateRelations: function(component) {
+    var connections = component.connected,
+    relations = component.related ? component.related : [];
+    /* Once all the connected alias is complete, walk each component. */
+    for (var i = 0; i < connections.length; i++) {
+      var connectedComponent = this.findComponent(connections[i]);
+      if (connectedComponent) {
+        /* And get all the related set in ech connected component. */
+        var relatedComponents = connectedComponent.related ? connectedComponent.related : [];
+        for (var j = 0; j < relatedComponents.length; j++) {
+          /* Get the component details to see if we can inherit more realations,
+           * based on the connected set. */
+          var heir = this.findComponent(relatedComponents[j]);
+          /* If the component given relations has not the relation whitin,
+           * the add it. */
+          if (relations.indexOf(heir.refdes) == -1
+            && connections.indexOf(heir.refdes) == -1) {
+            relations.push(heir.refdes);
+          }
+          /* If the relation has also a connected set,
+           * then add the refdes as a relation */
+          if (heir.connected) {
+            for (var k = 0; k < heir.connected.length; k++) {
+              if (relations.indexOf(heir.connected[k]) == -1
+                 && connections.indexOf(heir.refdes) == -1) {
+                relations.push(heir.connected[k]);
+              }
+            }
+          }
+        }
+        /* Do the same if for the pins */
+        if (connectedComponent.pins) {
+          var pins = connectedComponent.pins;
+          for (var j = 0; j < pins.length; j++) {
+            relatedComponents = pins[j].related ? pins[j].related : [];
+            for (var k = 0; k < relatedComponents.length; k++) {
+              heir = this.findComponent(relatedComponents[k]);
+              if (relations.indexOf(heir.refdes) == -1) {
+                relations.push(heir.refdes);
+              }
+              if (heir.connected) {
+                for (var l = 0; l < heir.connected.length; l++) {
+                  if (relations.indexOf(heir.connected[l]) == -1) {
+                    relations.push(heir.connected[l]);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return relations;
+  },
+
+  _getReverseRelations: function(component) {
+    var components =  this._boardData,
+    connections = component.connected,
+    relations = component.related;
+    /* Start to find components that are related to the given component. */
+    for (var i = 0; i < components.length; i++) {
+      var related = components[i].related;
+      if (related) {
+        if (related.indexOf(component.refdes) != -1) {
+          for (var j = 0; j < components[i].connected.length; j++) {
+            if (connections.indexOf(components[i].connected[j]) == -1
+              && relations.indexOf(components[i].connected[j]) == -1) {
+              relations.push(components[i].connected[j]);
+            }
+          }
+        }
+      }
+      /* Do the same if for the pins */
+      if (components[i].pins) {
+        var pins =  components[i].pins;
+        for (var j = 0; j < pins.length; j++) {
+          related = pins[j].related;
+          if (related) {
+            if (related.indexOf(component.refdes) != -1) {
+              for (var k = 0; k < pins[j].connected.length; k++) {
+                if (connections.indexOf(pins[j].connected[k] == -1)
+                  && relations.indexOf(pins[j].connected[k]) == -1) {
+                  relations.push(pins[j].connected[k]);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return relations;
   },
 
   /** Get the list of component categories.

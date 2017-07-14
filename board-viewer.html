@@ -1120,7 +1120,7 @@ Polymer({
     }
 
     /* Propagete relations in each component whitin an connected alias,
-     * (AC => B) := (A => C, C => B).  */
+     * (AC => B) := (A => B, C => B).  */
     for (var i = 0; i < components.length; i ++) {
       components[i].related = this._propagateRelations(components[i]);
       if (components[i].pins) {
@@ -1155,15 +1155,16 @@ Polymer({
 
   _getConnectedAlias: function (component) {
     var connections = component.connected ? component.connected : [], i;
-    /* Append the self reference to complete the whole connected alias */
+    /* Append the self reference to complete the whole connected alias,
+     * once all componets are updated remove it. */
     connections.unshift(component.refdes);
-    /* Get back chain of connections */
+    /* Get components that are connected to the current conections,
+     * And repeat while getting more connections. */
     i = 0;
     do {
       connections = this._searchBackConnections(connections[i], connections);
       i++;
     } while(i < connections.length);
-    /* Get foward chain of connections */
     i = 0;
     do {
       connections = this._searchFowardConnections(connections[i], connections);
@@ -1174,10 +1175,12 @@ Polymer({
   },
 
   _searchBackConnections: function(refdes, currentConnections) {
+    /* Look all components and find those components that are connected,
+     * To the refes given. */
     var components =  this._boardData, connections = currentConnections;
     for (var i = 0; i < components.length; i++) {
       var connected = components[i].connected;
-      /* Adding connected if there are not in the current connections set */
+      /* Adding the component if there are not in the current connections set */
       if (connected && connected.indexOf(refdes) != -1
         && connections.indexOf(components[i].refdes) == -1) {
         connections.push(components[i].refdes);
@@ -1202,9 +1205,10 @@ Polymer({
     var component = this.findComponent(refdes), connections = currentConnections;
     /* Only if we found the component. */
     if (component) {
-      /* We get the connected set to start find the refdes within. */
+      /* Get the connected set to start to find the refdes within. */
       var connected = component.connected;
-      /* Adding connected if there are not in the current connections. */
+      /* Walk connected set and all those refdes which are not,
+       * in the current connections. */
       if (connected) {
         for (var i = 0; i < connected.length; i++) {
           if (connections.indexOf(connected[i]) == -1){
@@ -1212,7 +1216,7 @@ Polymer({
           }
         }
       }
-      /* If the component have pins, do the same */
+      /* If the component have pins, do the same. */
       if (component.pins) {
         var pins =  component.pins;
         for (var j = 0; j < component.pins.length; j++) {
@@ -1233,22 +1237,24 @@ Polymer({
   _propagateRelations: function(component) {
     var connections = component.connected,
     relations = component.related ? component.related : [];
-    /* Once all the connected alias is complete, walk each component */
+    /* Once all the connected alias is complete, walk each component. */
     for (var i = 0; i < connections.length; i++) {
       var connectedComponent = this.findComponent(connections[i]);
       if (connectedComponent) {
         /* And get all the related set in ech connected component. */
         var relatedComponents = connectedComponent.related ? connectedComponent.related : [];
         for (var j = 0; j < relatedComponents.length; j++) {
+          /* Get the component details to see if we can inherit more realations,
+           * based on the connected set. */
           var heir = this.findComponent(relatedComponents[j]);
-          /* If the current component relations has not the relation,
+          /* If the component given relations has not the relation whitin,
            * the add it. */
           if (relations.indexOf(heir.refdes) == -1
             && connections.indexOf(heir.refdes) == -1) {
             relations.push(heir.refdes);
           }
           /* If the relation has also a connected set,
-          * then add the refdes as a relation */
+           * then add the refdes as a relation */
           if (heir.connected) {
             for (var k = 0; k < heir.connected.length; k++) {
               if (relations.indexOf(heir.connected[k]) == -1
@@ -1288,7 +1294,7 @@ Polymer({
     var components =  this._boardData,
     connections = component.connected,
     relations = component.related;
-    /* Start to find components that are related to the given component */
+    /* Start to find components that are related to the given component. */
     for (var i = 0; i < components.length; i++) {
       var related = components[i].related;
       if (related) {

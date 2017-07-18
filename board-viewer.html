@@ -1884,7 +1884,39 @@ Polymer({
     this.resize();
 
     if (missing.length) {
-      console.log("Missing items: " + JSON.stringify(missing, null, 2));
+      var board = {};
+      missing = missing.sort(function(a, b) {
+        return a.refdes.localeCompare(b.refdes);
+      });
+      missing.forEach(function(item) {
+        if (item.component in board) {
+          console.log("Duplicate component: " + item.refdes);
+          return;
+        }
+        board[item.refdes] = item;
+        delete item.name;
+        delete item.description;
+        delete item.type;
+        delete item.refdes;
+        if (item.pins) {
+          var pins = item.pins;
+          item.pins = {};
+          pins.forEach(function(pin) {
+            var parts = pin.refdes.toUpperCase().split("PIN");
+            if (parts[1] in item.pins) {
+              console.log("Duplicate pin: " + item.refdes);
+              return;
+            }
+            item.pins[parts[1]] = pin;
+            delete pin.name;
+            delete pin.description;
+            delete pin.type;
+            delete pin.refdes;
+            delete pin.component;
+          });
+        }
+      });
+      console.log("Missing items:\n" + JSON.stringify(board, null, 2));
     }
 
     this._calculateSVGElements();

@@ -1216,20 +1216,6 @@ Polymer({
           }
         }
       }
-      /* If the component have pins, do the same. */
-      if (component.pins) {
-        var pins =  component.pins;
-        for (var j = 0; j < component.pins.length; j++) {
-          connected = pins.connected;
-          if (connected) {
-            for (var i = 0; i < connected.length; i++) {
-              if (connections.indexOf(connected[i]) == -1){
-                connections.push(connected[i]);
-              }
-            }
-          }
-        }
-      }
     }
     return connections;
   },
@@ -1260,26 +1246,6 @@ Polymer({
               if (relations.indexOf(heir.connected[k]) == -1
                  && connections.indexOf(heir.refdes) == -1) {
                 relations.push(heir.connected[k]);
-              }
-            }
-          }
-        }
-        /* Do the same if for the pins */
-        if (connectedComponent.pins) {
-          var pins = connectedComponent.pins;
-          for (var j = 0; j < pins.length; j++) {
-            relatedComponents = pins[j].related ? pins[j].related : [];
-            for (var k = 0; k < relatedComponents.length; k++) {
-              heir = this.findComponent(relatedComponents[k]);
-              if (relations.indexOf(heir.refdes) == -1) {
-                relations.push(heir.refdes);
-              }
-              if (heir.connected) {
-                for (var l = 0; l < heir.connected.length; l++) {
-                  if (relations.indexOf(heir.connected[l]) == -1) {
-                    relations.push(heir.connected[l]);
-                  }
-                }
               }
             }
           }

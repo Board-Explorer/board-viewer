@@ -492,12 +492,10 @@ Polymer({
      * hoverable targets */
     if (selected.length == 0) {
       console.log("No selection -- adding all items as interactive");
-
       this.removeFilter("selected");
       this.removeFilter("selected-connected");
       this.removeFilter("selected-related");
       this.removeFilter("selected-pins");
-
       /* Turn on the 'Everything' interactive filters;
        * Pins will be Green
        * Components will be Cyan */
@@ -1563,10 +1561,12 @@ Polymer({
       div.style.left = rect.left;
       div.style.width = rect.width;
       div.style.height = rect.height;
+
       div.addEventListener('mouseover', this._onFilterOver.bind(this));
       div.addEventListener('mouseout', this._onFilterOut.bind(this));
       div.addEventListener('mousedown', this._onFilterDown.bind(this));
       div.addEventListener('mouseup', this._onFilterUp.bind(this));
+
       div.addEventListener('tap', this._onFilterTap.bind(this));
 
       Polymer.dom(this.$.filters).appendChild(div);
@@ -1593,7 +1593,6 @@ Polymer({
 
     /* Look the item up in the selected list */
     var index = this.selected.indexOf(item.refdes);
-
     /* If Control is pressed, toggle the state of this item in the
      * selected group */
     if (event.detail.sourceEvent.ctrlKey) {
@@ -1653,14 +1652,16 @@ Polymer({
       var filters = [];
       for (var i = 0; i < this._filters.length; i++) {
         if (this._filters[i].name.indexOf("connected-") == 0 ||
-            this._filters[i].name.indexOf("highlit-") == 0 ||
+            this._filters[i].name.indexOf("highlight-") == 0 ||
             this._filters[i].name.indexOf("related-") == 0) {
           filters.push(this._filters[i].name);
         }
       }
-      filters.forEach(function(name) {
-        this.removeFilter(name);
-      });
+
+      for (var i = 0; i < filters.length; i++) {
+        this.removeFilter(filters[i]);
+      }
+
       return;
     }
 
@@ -1739,7 +1740,19 @@ Polymer({
     this.fire('item-hover', info);
   },
 
+  _isTouchDevice: function() {
+    return (('ontouchstart' in window)
+      || (navigator.MaxTouchPoints > 0)
+      || (navigator.msMaxTouchPoints > 0));
+  },
+
   _onFilterOver: function(event) {
+
+    if (this._isTouchDevice()) {
+      event.preventDefault();
+      return;
+    }
+
     this.setHover({
       refdes: event.currentTarget.getAttribute("refdes"),
       in: true,
@@ -1748,6 +1761,12 @@ Polymer({
   },
 
   _onFilterOut: function(event) {
+
+     if (this._isTouchDevice()) {
+      event.preventDefault();
+      return;
+    }
+
     this.setHover({
       refdes: event.currentTarget.getAttribute('refdes'),
       in: false,

@@ -1740,15 +1740,9 @@ Polymer({
     this.fire('item-hover', info);
   },
 
-  _isTouchDevice: function() {
-    return (('ontouchstart' in window)
-      || (navigator.MaxTouchPoints > 0)
-      || (navigator.msMaxTouchPoints > 0));
-  },
-
   _onFilterOver: function(event) {
-
-    if (this._isTouchDevice()) {
+     /* If this event can trigger touches then prevent it */
+    if (event.sourceCapabilities.firesTouchEvents) {
       event.preventDefault();
       return;
     }
@@ -1761,8 +1755,8 @@ Polymer({
   },
 
   _onFilterOut: function(event) {
-
-     if (this._isTouchDevice()) {
+     /* If this event can trigger touches then prevent it */
+     if (event.sourceCapabilities.firesTouchEvents) {
       event.preventDefault();
       return;
     }

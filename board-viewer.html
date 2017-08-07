@@ -1408,18 +1408,6 @@ Polymer({
     this._renderShadow();
   },
 
-  _onFilterUp: function(event) {
-    if (this.tapTarget) {
-      this.fire('item-tap', { refdes: this.tapTarget, event: event });
-    }
-    event.preventDefault();
-  },
-
-  _onFilterDown: function(event) {
-    this.tapTarget = event.currentTarget.getAttribute('refdes');
-    event.preventDefault();
-  },
-
   /* Create all of the DIV elements that match the declared filter */
   _populateFilter: function(filter) {
     /* Delete all elements in the filter */
@@ -1565,8 +1553,6 @@ Polymer({
       div.style.height = rect.height;
       div.addEventListener('mouseover', this._onFilterOver.bind(this));
       div.addEventListener('mouseout', this._onFilterOut.bind(this));
-      div.addEventListener('mousedown', this._onFilterDown.bind(this));
-      div.addEventListener('mouseup', this._onFilterUp.bind(this));
       div.addEventListener('tap', this._onFilterTap.bind(this));
 
       Polymer.dom(this.$.filters).appendChild(div);
@@ -1587,6 +1573,8 @@ Polymer({
       console.log("Tap received for non filter item");
       return;
     }
+
+    this.tapTarget = event.currentTarget.getAttribute('refdes');
 
     event.preventDefault();
     event.stopPropagation();
@@ -1610,6 +1598,8 @@ Polymer({
     }
 
     this._onSelectedChanged(this.selected);
+
+    this.fire('item-tap', { refdes: this.tapTarget, event: event });
   },
 
   getFilteredItems: function(filterName) {

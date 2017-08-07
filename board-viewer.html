@@ -1660,7 +1660,7 @@ Polymer({
       }
       filters.forEach(function(name) {
         this.removeFilter(name);
-      });
+      }.bind(this));
       return;
     }
 

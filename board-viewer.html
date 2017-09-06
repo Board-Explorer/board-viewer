@@ -212,6 +212,10 @@ If any are active, only the active ones are active
       z-index: 300; /* Above filters (100) and pins (200) */
       cursor: pointer;
     }
+
+    #scaleWidget {
+      display: none;
+    }
   </style>
 
   <div id="viewer">
@@ -226,6 +230,7 @@ If any are active, only the active ones are active
     </div>
 
     <div id="controls" class="horizontal layout end-justified center">
+      <div id="scaleWidget"></div>
       <template is="dom-if" if="[[enableZoom]]">
         <paper-slider id="zoomControl"
           step="0.1" min="0" max="2" value="0"
@@ -263,7 +268,10 @@ Polymer({
       value: false,
       reflectToAttribute: true
     },
-
+    scaleTool: {
+      type: String,
+      value: ''
+    },
     /** The board name currently loaded (or loading). This will be loaded
      * out of the *basePath* directory as *basePath/board* */
     board: {
@@ -622,17 +630,56 @@ Polymer({
     }
 
     transform = "translate("
-      + -bb.width * zoom * 0.5 + "px,"
-      + -bb.height * zoom * 0.5 + "px)";
+      + -bb.width  * zoom * 0.5 + "mm,"
+      + -bb.height * zoom * 0.5 + "mm)";
     style += '-webkit-transform:' + transform + ';';
     style += '-ms-transform:' + transform + ';';
     style += '-moz-transform:' + transform + ';';
     style += 'transform:' + transform + ';';
-    style += 'width: ' + bb.width * zoom + 'px;';
-    style += 'height: ' + bb.height * zoom + 'px;';
-
+    style += 'width: ' + bb.width * zoom + 'mm;';
+    style += 'height: ' + bb.height * zoom + 'mm;';
     this.$.svg.style.cssText = style;
-    Polymer.dom.flush();
+
+    /* Setting a minimum value for grid units, mm are to small to render one by
+     * one properly so, 10 mm seems to be ok for the space in the grid lines. */
+    if (this.scaleTool) {
+      var units;
+      switch (this.scaleTool) {
+        case 'in':
+          units = 1;
+          break;
+
+        case 'mm':
+          units = 10;
+          break;
+
+        default:
+          console.warn('Unit "' + this.scaleTool + '" is not implemented, use mm or in.');
+          break;
+      }
+      /* Updating scale for the grid. */
+      var gridSpace = units * zoom + "" + this.scaleTool;
+      style  = "background-color: transparent;"
+      style += "background-image: ";
+      style += "linear-gradient(0deg, transparent 99%, ";
+      style += "rgba(255, 255, 255, 1), #fff), ";
+      style += "linear-gradient(90deg, transparent 99%, ";
+      style += "rgba(255, 255, 255, 1), #fff);";
+      style += "background-size: " +  gridSpace + " " + gridSpace + ";";
+      this.$.viewer.style.cssText = style;
+      /* Updating scale for scaleWidget. */
+      style  = "border: 2px solid;";
+      style += "display: block;";
+      style += "border-top: none;";
+      style += "position: absolute;";
+      style += "left: 15px;";
+      style += "text-align: center;";
+      style += "width: " + gridSpace + ";";
+      this.$.scaleWidget.innerText = units + this.scaleTool;
+      this.$.scaleWidget.style.cssText = style;
+    }
+
+     Polymer.dom.flush();
 
     /* Unhide the SVG itself; we hide it when the board is being loaded. We
      * don't show it until now because the style for the parent (this.$.svg)
@@ -1771,6 +1818,7 @@ Polymer({
           this.scale = this.defaultScale * this.offsetHeight / bb.height;
         }
 
+        this.scale /= 3.77952755905511; // Getting the scale value in mm.
         this._translate.x = this.offsetWidth * 0.5;
         this._translate.y = this.offsetHeight * 0.5;
 

@@ -216,6 +216,14 @@ If any are active, only the active ones are active
     #scaleWidget {
       display: none;
     }
+
+    #dpi {
+      width: 1mm;
+      visibility: hidden;
+      position: absolute;
+      bottom: 0;
+      height: 0;
+    }
   </style>
 
   <div id="viewer">
@@ -242,6 +250,8 @@ If any are active, only the active ones are active
       </template>
     </div>
   </div>
+  <!-- Sample element to calc pixels in a real mesure. -->
+  <div id="dpi"></div>
 </template>
 
 <script>
@@ -1850,7 +1860,12 @@ Polymer({
           this.scale = this.defaultScale * this.offsetHeight / bb.height;
         }
 
-        this.scale /= 3.77952755905511; // Getting the scale value in mm.
+        /* Get the width value in pixels from the 1mm div. */
+        var pixelsInMm = window.getComputedStyle(this.$.dpi).width;
+        pixelsInMm = Number(pixelsInMm.replace('px', ''));
+
+        this.scale /= pixelsInMm;
+
         this._translate.x = this.offsetWidth * 0.5;
         this._translate.y = this.offsetHeight * 0.5;
 

@@ -539,37 +539,54 @@ Polymer({
     selected.forEach(function(filter) {
       var item = this.findComponent(filter);
       if (!item) {
-        return;
-      }
-
-      if (!item.pins) {
-        item.pins = [];
-      }
-      for (var i = 0; i < item.pins.length; i++) {
-        if (pins.indexOf(item.pins[i].refdes) == -1) {
-          pins.push(item.pins[i].refdes);
+        /* If is not a component, then we look if is a keyword. */
+        if (this.keywords.indexOf(filter) != -1) {
+          item = {
+            refdes: filter,
+            type: "keyword"
+          };
         }
-      }
-      /* Walk through the list of connected elements; if not in the list of
-       * connections, add it */
-      if (!item.connected) {
-        item.connected = [];
-      }
-      for (var i = 0; i < item.connected.length; i++) {
-        if (connected.indexOf(item.connected[i]) == -1) {
-          connected.push(item.connected[i]);
+        else {
+          return;
         }
       }
 
-      /* Walk through the list of connected elements; if not in the list of
-       * connections, add it */
-      if (!item.related) {
-        item.related = [];
-      }
-      for (var i = 0; i < item.related.length; i++) {
-        if (related.indexOf(item.related[i]) == -1) {
-          related.push(item.related[i]);
-        }
+      switch (item.type) {
+        case "component":
+        case "pin":
+          if (!item.pins) {
+            item.pins = [];
+          }
+          for (var i = 0; i < item.pins.length; i++) {
+            if (pins.indexOf(item.pins[i].refdes) == -1) {
+              pins.push(item.pins[i].refdes);
+            }
+          }
+          /* Walk through the list of connected elements; if not in the list of
+           * connections, add it */
+          if (!item.connected) {
+            item.connected = [];
+          }
+          for (var i = 0; i < item.connected.length; i++) {
+            if (connected.indexOf(item.connected[i]) == -1) {
+              connected.push(item.connected[i]);
+            }
+          }
+          /* Walk through the list of connected elements; if not in the list of
+           * connections, add it */
+          if (!item.related) {
+            item.related = [];
+          }
+          for (var i = 0; i < item.related.length; i++) {
+            if (related.indexOf(item.related[i]) == -1) {
+              related.push(item.related[i]);
+            }
+          }
+          break;
+
+        case "keyword":
+          connected = this.getConnectedElementsByKeyword(item.refdes);
+          break;
       }
     }.bind(this));
 
@@ -1742,29 +1759,44 @@ Polymer({
         interactive: false
       });
       switch (item.type) {
-      case "pin":
-      case "component":
-        if (item.connected) {
-          this.addFilter("connected-" + item.refdes, item.connected, {
-            color: "#ff8000",
-            alwaysVisible: true,
-            interactive: false
-          });
-        }
-        if (item.related) {
-          this.addFilter("related-" + item.refdes, item.related, {
-            color: "#00ff00",
-            alwaysVisible: true,
-            interactive: false
-          });
-        }
-        break;
+        case "pin":
+        case "component":
+          if (item.connected) {
+            this.addFilter("connected-" + item.refdes, item.connected, {
+              color: "#ff8000",
+              alwaysVisible: true,
+              interactive: false
+            });
+          }
+          if (item.related) {
+            this.addFilter("related-" + item.refdes, item.related, {
+              color: "#00ff00",
+              alwaysVisible: true,
+              interactive: false
+            });
+          }
+          break;
+          case "keyword":
+            /* When a keyword is trying to be highlighted, we need to check
+            all the components and get its connections. */
+            var connections = this.getConnectedElementsByKeyword(item.refdes);
+            /* If we get some connections in the array then add the filter,
+            and highlight the connected components related to the keyword. */
+            if (connections) {
+              this.addFilter("connected-" + item.refdes, connections, {
+                color: "#ff8000",
+                alwaysVisible: true,
+                interactive: false
+              });
+            }
+          break;
       }
     } else {
       this.removeFilter("highlight-" + item.refdes);
       switch (item.type) {
       case "pin":
       case "component":
+      case "keyword":
         this.removeFilter("connected-" + item.refdes);
         this.removeFilter("related-" + item.refdes);
         break;
@@ -2120,6 +2152,33 @@ Polymer({
 
   getComponents: function() {
     return this.components;
+  },
+
+  getConnectedElementsByKeyword: function(keyword) {
+    var components = this._boardData;
+    var connections = [];
+    for (var i = 0; i < components.length; i++) {
+      /* Add all those components that have the item.refdes within the,
+      keywords array. */
+      if (components[i].keywords
+        && components[i].keywords.indexOf(keyword) != -1
+        && components[i].connected.length >= 1) {
+        connections = connections.concat(components[i].connected);
+      }
+      /* Add all those pins that have the item.refdes within the,
+      keywords array. */
+      var pins = components[i].pins;
+      if (pins != undefined) {
+        for (var j = 0; j < pins.length; j++) {
+          if (pins[j].keywords
+            && pins[j].keywords.indexOf(keyword) != -1
+            && pins[j].connected.length >= 1) {
+            connections = connections.concat(pins[j].connected);
+          }
+        }
+      }
+    }
+    return connections;
   },
 
   attached: function() {

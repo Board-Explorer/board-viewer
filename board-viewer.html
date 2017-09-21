@@ -1152,6 +1152,7 @@ Polymer({
           entry.refdes = entry.slug;
 
           category.list.forEach(function(term) {
+            term = term.toUpperCase();
             var item = this.findComponent(term);
             if (!item && this.keywords.indexOf(term) == -1) {
               console.warn("'" + term + "' listed in category #" + index + " does not exist.");

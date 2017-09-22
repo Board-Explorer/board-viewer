@@ -22,6 +22,7 @@ limitations under the License.
 <link rel="import" href="../iron-icon/iron-icon.html">
 <link rel="import" href="../iron-icons/maps-icons.html">
 <link rel="import" href="../iron-resizable-behavior/iron-resizable-behavior.html">
+<link rel="import" href="../iron-a11y-keys-behavior/iron-a11y-keys-behavior.html">
 <script src="../es6-shim/es6-shim.min.js"></script>
 <script src="../mustache.js/mustache.min.js"></script>
 <script src="../markdown-it/dist/markdown-it.js"></script>
@@ -371,6 +372,18 @@ Polymer({
     components: {
       type: Array,
       value: []
+    },
+     boundKeys: {
+      type: Array,
+      value: function() {
+        return Object.keys(this.keyBindings).join(' ').split(' ');
+      }
+    },
+    keyEventTarget: {
+      type: Object,
+      value: function() {
+        return document.body;
+      }
     }
   },
 
@@ -385,8 +398,13 @@ Polymer({
 
   behaviors: [
     /* @polymerBehavior Polymer.IronResizableBehavior */
-    Polymer.IronResizableBehavior
+    Polymer.IronResizableBehavior,
+    Polymer.IronA11yKeysBehavior
   ],
+
+  keyBindings: {
+    'esc': '_onEscPressed'
+  },
 
   listeners: {
     "tap": "_onTap",
@@ -394,17 +412,11 @@ Polymer({
     "touchmove": "_onPinch",
     "wheel": "_onScroll",
     "board.response": "_boardLoaded",
-    "board.error": "_boardLoadError",
-    "keydown": "_keyDown",
-    "keyup": "_keyUp"
+    "board.error": "_boardLoadError"
   },
 
-  _keyDown: function(event) {
-    console.log("Down: " + event);
-  },
-
-  _keyUp: function(event) {
-    console.log("Up: " + event);
+  _onEscPressed: function(event) {
+    this.selected = [];
   },
 
   _onDisableShadowChanged: function(disableShadow) {

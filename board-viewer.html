@@ -815,7 +815,8 @@ Polymer({
 
     /* Look up the component first */
     for (var i = 0; i < this._boardData.length; i++) {
-      if (this._boardData[i].refdes.toUpperCase() == parts[0]) {
+      if (this._boardData[i].refdes &&
+        this._boardData[i].refdes.toUpperCase() == parts[0]) {
         component = this._boardData[i];
         break;
       }

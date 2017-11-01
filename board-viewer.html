@@ -425,6 +425,10 @@ Polymer({
 
   _onTap: function(event) {
     console.log("_onTap");
+    /* If this is a tap on the zoom icon, ignore it */
+    if (event.srcElement.getAttribute("icon") == "maps:zoom-out-map") {
+      return;
+    }
     /* If the board-viewer is tapped on, clear the selected items */
     this.selected = [];
     event.preventDefault();

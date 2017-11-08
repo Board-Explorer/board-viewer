@@ -634,6 +634,41 @@ Polymer({
     });
   },
 
+  getItemsByKeyword: function(keyword, item) {
+    keyword = keyword ? keyword.toUpperCase() : "";
+
+    var matches = [];
+
+    /* Walk through all components and then all their pins looking
+     * for keyword matches */
+    for (var i = 0; i < this._boardData.length; i++) {
+      var item = this._boardData[i];
+      /* If the keyword is on the component, add the component */
+      if (item.keywords && item.keywords.length) {
+        if (item.keywords.indexOf(keyword) != -1) {
+          matches.push(item);
+        }
+      } else if (!keyword) {
+        matches.push(item);
+      }
+
+      if (item.pins) {
+        item.pins.forEach(function(pin) {
+          /* If the keyword is on the component, add the component */
+          if (pin.keywords && pin.keywords.length) {
+            if (pin.keywords.indexOf(keyword) != -1) {
+              matches.push(pin);
+            }
+          } else if (!keyword) {
+            matches.push(pin);
+          }
+        });
+      }
+    }
+
+    return matches;
+  },
+
   /* This needs to be connected to the zoom slider control (currently not
    * implemented) */
   _onZoomChanged: function(event) {
@@ -847,8 +882,6 @@ Polymer({
         return component.pins[i];
       }
     }
-
-
 
     /* No matches anywhere... return null */
     return null;
@@ -1513,6 +1546,7 @@ Polymer({
     if (!this._svg) {
       return;
     }
+
 
     var potentials = [];
     /* Walk the list of items in the SVG that match the BV_ prefix

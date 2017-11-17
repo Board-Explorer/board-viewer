@@ -4,6 +4,11 @@
       "polymer-2-hybrid"
     ]
   },
+  "sources": [
+    "board-viewer.html",
+    "LICENSE.md",
+    "unit.svg"
+  ],
   "builds": [{
     "bundle": true,
     "js": {"minify": true},

@@ -470,42 +470,6 @@ Polymer({
   },
 
   _zoomToFit: function() {
-    var rect = null, items = this.querySelectorAll("#filters div");
-
-    Array.prototype.forEach.call(items, function(el) {
-      var tmp = el.getBoundingClientRect();
-      if (rect == null) {
-        rect = {
-          left: tmp.left,
-          right: tmp.right,
-          top: tmp.top,
-          bottom: tmp.bottom
-        };
-      } else {
-        if (tmp.left < rect.left) {
-          rect.left = tmp.left;
-        }
-        if (tmp.right > rect.right) {
-          rect.right = tmp.right;
-        }
-        if (tmp.top < rect.top) {
-          rect.top = tmp.top;
-        }
-        if (tmp.bottom > rect.bottom) {
-          rect.bottom = tmp.bottom;
-        }
-      }
-    }.bind(this));
-
-    console.log("Bounding rectangle: " + JSON.stringify(rect, null, 2));
-
-    var targetWidth = ((rect.right - rect.left) / (this.scale + this.scale * this.zoom)) / 0.8,
-      targetHeight = ((rect.bottom - rect.top) / (this.scale + this.scale * this.zoom)) / 0.8;
-    this.zoom = Math.min((this.clientWidth / targetWidth - this.scale) / this.scale,
-        (this.clientHeight / targetHeight - this.scale) / this.scale);
-    this.resize();
-    return;
-
     this._firstResize = true;
     this.$$('#zoomControl').value = 0;
     this.resize();

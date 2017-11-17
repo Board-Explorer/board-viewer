@@ -5,14 +5,16 @@
     ]
   },
   "sources": [
-    "board-viewer.html",
-    "LICENSE.md",
-    "unit.svg"
+    "board-viewer.html"
   ],
   "builds": [{
     "bundle": true,
     "js": {"minify": true},
     "css": {"minify": true},
     "html": {"minify": true}
-  }]
+  }],
+  "extraDependencies": [
+    "LICENSE.md",
+    "unit.svg"
+  ]
 }

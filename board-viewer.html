@@ -806,7 +806,7 @@ Polymer({
 
     /* Setting a minimum value for grid units, mm are to small to render one by
      * one properly so, 10 mm seems to be ok for the space in the grid lines. */
-    if (this.scaleTool) {
+    if (this.scaleTool !== undefined) {
       /* If not explicitly inches, force to mm */
       var unit = "mm", units =10;
 

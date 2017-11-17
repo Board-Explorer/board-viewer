@@ -33,9 +33,9 @@
      inkscape:document-units="px"
      inkscape:current-layer="svg3336"
      showgrid="false"
-     inkscape:window-width="1855"
-     inkscape:window-height="1056"
-     inkscape:window-x="65"
+     inkscape:window-width="1615"
+     inkscape:window-height="1026"
+     inkscape:window-x="1985"
      inkscape:window-y="24"
      inkscape:window-maximized="1"
      fit-margin-top="0"
@@ -75,8 +75,105 @@
     </rdf:RDF>
   </metadata>
   <path
-     style="fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;opacity:0.5;stroke-miterlimit:4;stroke-dasharray:none"
+     style="fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;opacity:0.75;stroke-miterlimit:4;stroke-dasharray:none"
      d="M 0,10 0,0 10,0"
      id="path3369"
      inkscape:connector-curvature="0" />
+  <g
+     id="g3443">
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334"
+       d="M 5,10 5,0"
+       style="opacity:0.5;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-9"
+       d="M 1,10 1,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-6"
+       d="M 2,10 2,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-56"
+       d="M 3,10 3,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-5"
+       d="M 4,10 4,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-2"
+       d="M 6,10 6,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-0"
+       d="M 7,10 7,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-3"
+       d="M 8,10 8,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-06"
+       d="M 9,10 9,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+  </g>
+  <g
+     transform="matrix(0,1,-1,0,10,0)"
+     id="g3443-7">
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-59"
+       d="M 5,10 5,0"
+       style="opacity:0.5;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-9-2"
+       d="M 1,10 1,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-6-2"
+       d="M 2,10 2,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-56-8"
+       d="M 3,10 3,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-5-9"
+       d="M 4,10 4,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-2-7"
+       d="M 6,10 6,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-0-3"
+       d="M 7,10 7,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-3-6"
+       d="M 8,10 8,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path3334-06-1"
+       d="M 9,10 9,0"
+       style="opacity:0.25;fill:none;fill-rule:evenodd;stroke:#7d7d7d;stroke-width:0.1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" />
+  </g>
 </svg>

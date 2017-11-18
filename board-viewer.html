@@ -251,10 +251,11 @@ If any are active, only the active ones are active
 
     #dpi {
       width: 1mm;
+      height: 1mm;
       visibility: hidden;
       position: absolute;
-      bottom: 0;
-      height: 0;
+      bottom: -1mm;
+      box-sizing: border-box;
     }
   </style>
 
@@ -276,7 +277,7 @@ If any are active, only the active ones are active
       </div>
       <template is="dom-if" if="[[enableZoom]]">
         <paper-slider id="zoomControl"
-          step="0.1" min="0" max="2" value="0"
+          step="0.025" min="[[minScale]]" max="[[maxScale]]" value="[[scale]]"
           on-immediate-value-changed="_onZoomChanged">
         </paper-slider>
       </template>
@@ -322,12 +323,6 @@ Polymer({
     board: {
       type: String,
       readOnly: true,
-      notify: true
-    },
-    /** The zoom level of the board. Minimum: 0.5, Maximum: 1.5 */
-    zoom: {
-      type: Number,
-      value: 0,
       notify: true
     },
     /** Default scale for the board. 1.0 fills the viewport (while maintaining
@@ -486,13 +481,13 @@ Polymer({
     var zoomControl = this.$$('#zoomControl');
      /* Inverted aim. */
     if (event.deltaY < 0) {
-      this.zoom = Math.max(Math.min(this.zoom + 0.1, 2.0), 0);
+      this.scale = Math.max(Math.min(this.scale + 0.1, this.maxScale), this.minScale);
     } else {
-      this.zoom = Math.max(Math.min(this.zoom - 0.1, 2.0), 0);
+      this.scale = Math.max(Math.min(this.scale - 0.1, this.maxScale), this.minScale);
     }
      /* Adjusting bar progres to current zoom value. */
-    zoomControl.value = this.zoom;
-    this._onBoardZoom(this._svg, this.zoom);
+    zoomControl.value = this.scale;
+    this._onBoardZoom(this._svg, this.scale);
   },
 
   setSelected: function(selected) {
@@ -539,14 +534,13 @@ Polymer({
         var zoomControl = this.$$('#zoomControl');
         /* Pinch is growing, then zoom in. */
         if (finalDistance > initialDistance) {
-          this.zoom = Math.max(Math.min(this.zoom + 0.1, 2.0), 0);
+          this.scale = Math.max(Math.min(this.scale + 0.1, this.maxScale), this.minScale);
         } else {
-          /* Pinch is getting smaller, then zoom out. */
-          this.zoom = Math.max(Math.min(this.zoom - 0.1, 2.0), 0);
+          this.scale = Math.max(Math.min(this.scale - 0.1, this.maxScale), this.minScale);
         }
-        zoomControl.value = this.zoom;
+        zoomControl.value = this.scale;
 
-        this._onBoardZoom(this._svg, this.zoom);
+        this._onBoardZoom(this._svg, this.scale);
       }
     }
   },
@@ -707,7 +701,7 @@ Polymer({
   /* This needs to be connected to the zoom slider control (currently not
    * implemented) */
   _onZoomChanged: function(event) {
-    this.zoom = Math.max(Math.min(event.detail.value, 2.0), 0);
+    this.scale = event.detail.value;
     this.resize();
   },
 
@@ -726,10 +720,9 @@ Polymer({
      * the SVG is not being rendered */
     try {
       var bb = this._svg.getBBox();
-      var zoom = this.scale + this.scale * this.zoom;
       this.$.viewer.style.backgroundPosition =
-        "calc(" + x + "px - " + (bb.width * zoom * 0.5) + "mm) " +
-        "calc(" + y + "px - " + (bb.height * zoom * 0.5) + "mm)";
+        "calc(" + x + "px - " + (bb.width * this.scale * 0.5) + "mm) " +
+        "calc(" + y + "px - " + (bb.height * this.scale * 0.5) + "mm)";
     } catch (_) {
     }
 
@@ -737,15 +730,13 @@ Polymer({
   },
 
   _onScaleToolChange: function() {
-    this._onBoardZoom(this._svg, this.zoom);
+    this._onBoardZoom(this._svg, this.scale);
   },
 
-  _onBoardZoom: function(svg, zoom) {
+  _onBoardZoom: function(svg, scale) {
     if (!svg) {
       return;
     }
-
-    zoom = this.scale + this.scale * zoom;
 
     var transform = '', style = '', bb;
 
@@ -758,14 +749,14 @@ Polymer({
     }
 
     transform = "translate("
-      + -bb.width  * zoom * 0.5 + "mm,"
-      + -bb.height * zoom * 0.5 + "mm)";
+      + -bb.width  * scale * 0.5 + "mm,"
+      + -bb.height * scale * 0.5 + "mm)";
     style += '-webkit-transform:' + transform + ';';
     style += '-ms-transform:' + transform + ';';
     style += '-moz-transform:' + transform + ';';
     style += 'transform:' + transform + ';';
-    style += 'width: ' + bb.width * zoom + 'mm;';
-    style += 'height: ' + bb.height * zoom + 'mm;';
+    style += 'width: ' + bb.width * scale + 'mm;';
+    style += 'height: ' + bb.height * scale + 'mm;';
     this.$.svg.style.cssText = style;
 
     /* Setting a minimum value for grid units, mm are to small to render one by
@@ -774,16 +765,16 @@ Polymer({
       /* If not explicitly inches, force to mm */
       var unit = "mm", units =10;
 
-      if (this.scaleTool == "in" || this.scale == "inches") {
+      if (this.scaleTool == "in" || this.scaleTool == "inches") {
         unit = "in";
         units = 1;
       }
 
       /* Updating scale for the grid. */
-      var scaledMetric = units * zoom + unit;
+      var scaledMetric = (units * this.scale * this.pixelsInMm) + unit;
       this.$.viewer.style.backgroundPosition =
-        "calc(" + this._translate.x + "px - " + (bb.width * zoom * 0.5) + "mm) " +
-        "calc(" + this._translate.y + "px - " + (bb.height * zoom * 0.5) + "mm)";
+        "calc(" + this._translate.x + "px - " + (bb.width * scale * 0.5) + "mm) " +
+        "calc(" + this._translate.y + "px - " + (bb.height * scale * 0.5) + "mm)";
       this.$.viewer.style.backgroundSize = scaledMetric + " " + scaledMetric;
 
       this.$["scale-units"].textContent = units + unit;
@@ -1037,7 +1028,6 @@ Polymer({
           svg.setAttribute('viewBox', bb.x + ' ' + bb.y + ' ' + bb.width + ' ' + bb.height);
           svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-          this.zoom = 0;
           this.scale = 1;
           this._translate.x = this.offsetWidth * 0.5;
           this._translate.y = this.offsetHeight * 0.5;
@@ -1933,23 +1923,32 @@ Polymer({
       this.updateStyles();
 
       if (this._firstResize || !this.disableAutoResize) {
+        /* Get the width value in pixels from the 1mm div. */
+        this.pixelsInMm = Number(window.getComputedStyle(this.$.dpi).width.replace('px', ''));
+
         var bb = this._svg.getBBox();
 
         /* Compare aspect ratio of the board with the aspect ratio of the
          * viewport and set the scale based on the best-fit */
         if (bb.width / bb.height > this.offsetWidth / this.offsetHeight) {
           /* Board is wider-angle than the viewport, so use width as best-fit */
-          this.scale = this.defaultScale * this.offsetWidth / bb.width;
+          this.fitScale = this.defaultScale * this.offsetWidth / bb.width;
         } else {
           /* Board is narrower-angle than the viewport, so use height as best-fit */
-          this.scale = this.defaultScale * this.offsetHeight / bb.height;
+          this.fitScale = this.defaultScale * this.offsetHeight / bb.height;
         }
 
-        /* Get the width value in pixels from the 1mm div. */
-        var pixelsInMm = window.getComputedStyle(this.$.dpi).width;
-        pixelsInMm = Number(pixelsInMm.replace('px', ''));
+        this.realScale = 1 / this.pixelsInMm; /* "real size" */
+        this.fitScale *= this.realScale; /* Convert from pixels to real units */
 
-        this.scale /= pixelsInMm;
+        /* Smallest size is either what it takes to fit the entire board, or
+         * real size */
+        this.minScale = Math.min(this.realScale, this.fitScale);
+
+        /* Largest size is 3x real size */
+        this.maxScale = this.realScale * 3;
+
+        this.scale = this.fitScale;
 
         this._translate.x = this.offsetWidth * 0.5;
         this._translate.y = this.offsetHeight * 0.5;
@@ -1960,7 +1959,7 @@ Polymer({
       /* Translate before zoom; zoom will recaluclate the filter div dimensions
        * from the transformed SVG, including the _translate */
       this._onBoardMove(this._translate.x, this._translate.y);
-      this._onBoardZoom(this._svg, this.zoom);
+      this._onBoardZoom(this._svg, this.scale);
 
     }, 100);
   },

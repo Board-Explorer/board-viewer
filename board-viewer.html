@@ -465,9 +465,37 @@ Polymer({
   },
 
   _zoomToFit: function() {
-    this._firstResize = true;
-    this.$$('#zoomControl').value = 0;
-    this.resize();
+    if (this.zoomedToFit) {
+      this.scale = this.fitScale;
+      this._translate.x = this.offsetWidth * 0.5;
+      this._translate.y = this.offsetHeight * 0.5;
+      this._onBoardMove(this._translate.x, this._translate.y);
+      this._onBoardZoom(this._svg, this.scale);
+      this.zoomedToFit = false;
+      return;
+    }
+
+    this._calculateSelectedBounds();
+
+    if (!this.selectionScale) {
+      this.scale = this.minScale;
+    } else {
+      this.scale = this.selectionScale;
+    }
+    console.log("Zoomed to " + this.scale);
+
+    var left = this.bounds.left * this.scale,
+      top = this.bounds.top * this.scale,
+      width = this.bounds.width * this.scale,
+      height = this.bounds.height * this.scale;
+
+    this._translate.x = this.$.container.offsetWidth * 0.5 - (left + width * 0.5);
+    this._translate.y = this.$.container.offsetHeight * 0.5 - (top + height * 0.5);
+
+    this._onBoardMove(this._translate.x, this._translate.y);
+    this._onBoardZoom(this._svg, this.scale);
+
+    this.zoomedToFit = true;
   },
 
   _onDisableAutoResizeChanged: function(disableAutoResize) {
@@ -576,6 +604,8 @@ Polymer({
         alwaysVisible: false
       });
 
+      console.log("Resetting maxScale to 3.0");
+      this.maxScale = 3.0;
       return;
     }
 
@@ -661,6 +691,9 @@ Polymer({
       alwaysVisible: true,
       interactive: true
     });
+
+    console.log("Resetting maxScale to selection fit.");
+    this._calculateSelectedBounds();
   },
 
   getItemsByKeyword: function(keyword, item) {
@@ -1922,29 +1955,31 @@ Polymer({
       Polymer.dom.flush();
       this.updateStyles();
 
-      if (this._firstResize || !this.disableAutoResize) {
+      if (!this.pixelsInMm) {
         /* Get the width value in pixels from the 1mm div. */
         this.pixelsInMm = Number(window.getComputedStyle(this.$.dpi).width.replace('px', ''));
+      }
 
-        var bb = this._svg.getBBox();
+      var bb = this._svg.getBBox();
 
-        /* Compare aspect ratio of the board with the aspect ratio of the
-         * viewport and set the scale based on the best-fit */
-        if (bb.width / bb.height > this.offsetWidth / this.offsetHeight) {
-          /* Board is wider-angle than the viewport, so use width as best-fit */
-          this.fitScale = this.defaultScale * this.offsetWidth / bb.width;
-        } else {
-          /* Board is narrower-angle than the viewport, so use height as best-fit */
-          this.fitScale = this.defaultScale * this.offsetHeight / bb.height;
-        }
+      /* Compare aspect ratio of the board with the aspect ratio of the
+       * viewport and set the scale based on the best-fit */
+      if (bb.width / bb.height > this.offsetWidth / this.offsetHeight) {
+        /* Board is wider-angle than the viewport, so use width as best-fit */
+        this.fitScale = this.defaultScale * this.offsetWidth / bb.width;
+      } else {
+        /* Board is narrower-angle than the viewport, so use height as best-fit */
+        this.fitScale = this.defaultScale * this.offsetHeight / bb.height;
+      }
 
-        this.realScale = 1 / this.pixelsInMm; /* "real size" */
-        this.fitScale *= this.realScale; /* Convert from pixels to real units */
+      this.realScale = 1 / this.pixelsInMm; /* "real size" */
+      this.fitScale *= this.realScale; /* Convert from pixels to real units */
 
-        /* Smallest size is either what it takes to fit the entire board, or
-         * real size */
-        this.minScale = Math.min(this.realScale, this.fitScale);
+      /* Smallest size is either what it takes to fit the entire board, or
+       * real size */
+      this.minScale = Math.min(this.realScale, this.fitScale);
 
+      if (this._firstResize || !this.disableAutoResize) {
         /* Largest size is 3x real size */
         this.maxScale = this.realScale * 3;
 
@@ -2063,6 +2098,69 @@ Polymer({
     this._renderShadow();
   },
 
+  _calculateSelectedBounds: function() {
+    var containerRect = this.$.container.getBoundingClientRect(),
+      bounds = null, holes = this.$.filters.querySelectorAll("div");
+
+    for (var i = 0; i < holes.length; i++) {
+      var rect = {
+        left: holes[i].offsetLeft - holes[i].offsetWidth * 0.5,
+        top: holes[i].offsetTop - holes[i].offsetHeight * 0.5,
+        width: holes[i].offsetWidth,
+        height: holes[i].offsetHeight
+      };
+      rect.right = rect.left + rect.width;
+      rect.bottom = rect.top + rect.height;
+
+      if (i == 0) {
+        bounds = rect;
+      } else {
+        if (rect.left < bounds.left) {
+          bounds.left = rect.left;
+        }
+        if (rect.right > bounds.right) {
+          bounds.right = rect.right;
+        }
+        if (rect.top < bounds.top) {
+          bounds.top = rect.top;
+        }
+        if (rect.bottom > bounds.bottom) {
+          bounds.bottom = rect.bottom;
+        }
+        bounds.width = bounds.right - bounds.left;
+        bounds.height = bounds.bottom - bounds.top;
+      }
+    }
+
+    if (!bounds) {
+      bounds = {
+        left: 0,
+        top: 0,
+        width: containerRect.width,
+        height: containerRect.height
+      };
+    }
+
+    bounds.left /= this.scale;
+    bounds.top /= this.scale;
+    bounds.width /= this.scale;
+    bounds.height /= this.scale;
+
+    /* Compare aspect ratio of the selection with the aspect ratio of the
+     * viewport and set the scale based on the best-fit */
+    var newScale;
+    if (bounds.width / bounds.height > this.offsetWidth / this.offsetHeight) {
+      /* Board is wider-angle than the viewport, so use width as best-fit */
+      newScale = this.defaultScale * this.offsetWidth / bounds.width;
+    } else {
+      /* Board is narrower-angle than the viewport, so use height as best-fit */
+      newScale = this.defaultScale * this.offsetHeight / bounds.height;
+    }
+    this.maxScale = Math.max(newScale, this.realScale * 3.0);
+    this.selectionScale = newScale;
+    this.bounds = bounds;
+  },
+
   _renderShadow: function() {
     this.debounce("render-shadow", function() {
       var filters = Polymer.dom(this.$.filters),
@@ -2087,9 +2185,7 @@ Polymer({
 
       var offset = this.getBoundingClientRect(),
         canvasRect = canvas.getBoundingClientRect(),
-        svgRect = this.$.svg.getBoundingClientRect(),
-        borderWidth = 0;
-
+        svgRect = this.$.svg.getBoundingClientRect();
       ctx.save();
       /* Clear the shadow to dark gray */
       ctx.fillStyle = 'rgba(20,20,20,1)';
@@ -2112,10 +2208,10 @@ Polymer({
 
       for (var i = 0; i < holes.length; i++) {
         var rect = {
-          left: canvasRect.width * 0.5 + holes[i].offsetLeft - holes[i].offsetWidth * 0.5 - borderWidth,
-          top: canvasRect.height * 0.5 + holes[i].offsetTop - holes[i].offsetHeight * 0.5 - borderWidth,
-          width: holes[i].offsetWidth + borderWidth * 2,
-          height: holes[i].offsetHeight + borderWidth * 2
+          left: canvasRect.width * 0.5 + holes[i].offsetLeft - holes[i].offsetWidth * 0.5,
+          top: canvasRect.height * 0.5 + holes[i].offsetTop - holes[i].offsetHeight * 0.5,
+          width: holes[i].offsetWidth,
+          height: holes[i].offsetHeight
         };
 
         /* Draw the shadow */
@@ -2124,6 +2220,7 @@ Polymer({
         /* Clear the inside of the region */
         ctx.clearRect(rect.left, rect.top, rect.width, rect.height);
       }
+
       ctx.restore();
     });
   },

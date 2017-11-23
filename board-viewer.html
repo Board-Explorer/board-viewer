@@ -20,7 +20,7 @@ limitations under the License.
 <link rel="import" href="../iron-ajax/iron-request.html">
 <link rel="import" href="../iron-flex-layout/iron-flex-layout-classes.html">
 <link rel="import" href="../iron-icon/iron-icon.html">
-<link rel="import" href="../iron-icons/maps-icons.html">
+<link rel="import" href="../iron-icons/image-icons.html">
 <link rel="import" href="../iron-resizable-behavior/iron-resizable-behavior.html">
 <link rel="import" href="../iron-a11y-keys-behavior/iron-a11y-keys-behavior.html">
 <script src="../es6-shim/es6-shim.min.js"></script>
@@ -282,7 +282,7 @@ If any are active, only the active ones are active
         </paper-slider>
       </template>
       <template is="dom-if" if="[[disableAutoResize]]">
-        <iron-icon icon="maps:zoom-out-map" on-tap="_zoomToFit"></iron-icon>
+        <iron-icon icon="image:center-focus-strong" on-tap="_zoomToFit" id="zoomIcon"></iron-icon>
       </template>
     </div>
   </div>
@@ -447,6 +447,7 @@ Polymer({
 
   _onEscPressed: function(event) {
     this.selected = [];
+    this._abortZoomToFit();
   },
 
   _onDisableShadowChanged: function(disableShadow) {
@@ -456,7 +457,8 @@ Polymer({
   _onTap: function(event) {
     console.log("_onTap");
     /* If this is a tap on the zoom icon, ignore it */
-    if (event.target.getAttribute("icon") == "maps:zoom-out-map") {
+    if (event.target.getAttribute("icon") == "image:center-focus-strong" ||
+        event.target.getAttribute("icon") == "image:center-focus-weak") {
       return;
     }
     /* If the board-viewer is tapped on, clear the selected items */
@@ -465,13 +467,9 @@ Polymer({
   },
 
   _zoomToFit: function() {
+
     if (this.zoomedToFit) {
-      this.scale = this.fitScale;
-      this._translate.x = this.offsetWidth * 0.5;
-      this._translate.y = this.offsetHeight * 0.5;
-      this._onBoardMove(this._translate.x, this._translate.y);
-      this._onBoardZoom(this._svg, this.scale);
-      this.zoomedToFit = false;
+      this._abortZoomToFit();
       return;
     }
 
@@ -485,9 +483,9 @@ Polymer({
     console.log("Zoomed to " + this.scale);
 
     var left = this.bounds.left * this.scale,
-      top = this.bounds.top * this.scale,
-      width = this.bounds.width * this.scale,
-      height = this.bounds.height * this.scale;
+        top = this.bounds.top * this.scale,
+        width = this.bounds.width * this.scale,
+        height = this.bounds.height * this.scale;
 
     this._translate.x = this.$.container.offsetWidth * 0.5 - (left + width * 0.5);
     this._translate.y = this.$.container.offsetHeight * 0.5 - (top + height * 0.5);
@@ -495,7 +493,18 @@ Polymer({
     this._onBoardMove(this._translate.x, this._translate.y);
     this._onBoardZoom(this._svg, this.scale);
 
+    this.$$('#zoomIcon').icon = 'image:center-focus-weak';
     this.zoomedToFit = true;
+  },
+
+  _abortZoomToFit: function() {
+    this.scale = this.fitScale;
+    this._translate.x = this.offsetWidth * 0.5;
+    this._translate.y = this.offsetHeight * 0.5;
+    this._onBoardMove(this._translate.x, this._translate.y);
+    this._onBoardZoom(this._svg, this.scale);
+    this.$$('#zoomIcon').icon = 'image:center-focus-strong';
+    this.zoomedToFit = false;
   },
 
   _onDisableAutoResizeChanged: function(disableAutoResize) {
@@ -2100,7 +2109,7 @@ Polymer({
 
   _calculateSelectedBounds: function() {
     var containerRect = this.$.container.getBoundingClientRect(),
-      bounds = null, holes = this.$.filters.querySelectorAll("div");
+      bounds = null, holes = this.$.filters.querySelectorAll("div.interactive.alwaysVisible");
 
     for (var i = 0; i < holes.length; i++) {
       var rect = {

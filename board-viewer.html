@@ -156,9 +156,14 @@ If any are active, only the active ones are active
     }
 
     /* Hovering over interactive elements makes them full bright */
+    #filters > div.interactive:focus,
     #filters > div.interactive.hover,
     #filters > div.interactive.alwaysVisible.hover {
       opacity: 1;
+    }
+
+    #filters > div.interactive:focus {
+      border-color: yellow;
     }
 
     /* alwaysVisible are half dim when not highlighted */
@@ -259,7 +264,7 @@ If any are active, only the active ones are active
     }
   </style>
 
-  <div id="viewer">
+  <div tabindex="0" id="viewer">
     <iron-request id="boards"></iron-request>
     <iron-ajax auto handle-as="json" id="board"></iron-ajax>
 
@@ -446,7 +451,12 @@ Polymer({
   },
 
   _onEscPressed: function(event) {
-    this.selected = [];
+    var target = event.detail.keyboardEvent.target;
+    if (this.contains(target)) {
+      this.selected = [];
+      this.$.viewer.focus();
+      event.preventDefault();
+    }
   },
 
   _onDisableShadowChanged: function(disableShadow) {
@@ -455,6 +465,8 @@ Polymer({
 
   _onTap: function(event) {
     console.log("_onTap");
+    event.target.focus();
+
     /* If this is a tap on the zoom icon, ignore it */
     if (event.target.getAttribute("icon") == "image:center-focus-strong" ||
         event.target.getAttribute("icon") == "image:center-focus-weak") {
@@ -1725,6 +1737,10 @@ Polymer({
        * active on the element and it is set as `interactive`
        * otherwise set to 'bright' for full opacity */
       if (filter.options.interactive) {
+        /* If the user zooms in and then tabs to an offscreen item, the
+         * UX scrolls the item into view, but disrupts all scaling... not
+         * sure why. For now, we don't allow keyboard navigation */
+/*        div.setAttribute("tabindex", "0"); */
         div.classList.add('interactive');
       }
 
@@ -1753,11 +1769,11 @@ Polymer({
   },
 
 
-
   /** Toggles an item in or out of the selected group. If control is not
    * pressed, the group is set to just the tapped item. */
   _onFilterTap: function(event) {
     console.log("_onFilterTap");
+    this.$.viewer.focus();
     /* Look up the item in the boardData */
     var item = this.findComponent(event.currentTarget.getAttribute('refdes'));
     if (!item) {

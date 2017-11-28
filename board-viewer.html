@@ -466,8 +466,7 @@ Polymer({
   },
 
   _zoomToFit: function() {
-
-    if (this.zoomedToFit) {
+    if (this.zoomedToFit || !this.selected || this.selected.length == 0) {
       this._abortZoomToFit();
       return;
     }

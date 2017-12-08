@@ -469,7 +469,8 @@ Polymer({
 
     /* If this is a tap on the zoom icon, ignore it */
     if (event.target.getAttribute("icon") == "image:center-focus-strong" ||
-        event.target.getAttribute("icon") == "image:center-focus-weak") {
+        event.target.getAttribute("icon") == "image:center-focus-weak" ||
+        event.target.getAttribute("id") == "sliderContainer") {
       return;
     }
     /* If the board-viewer is tapped on, clear the selected items */

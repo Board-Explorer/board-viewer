@@ -451,9 +451,9 @@ Polymer({
   },
 
   _onEscPressed: function(event) {
+    this.selected = [];
     var target = event.detail.keyboardEvent.target;
     if (this.contains(target)) {
-      this.selected = [];
       this.$.viewer.focus();
       event.preventDefault();
     }

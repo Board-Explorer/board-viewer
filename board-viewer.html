@@ -391,6 +391,10 @@ Polymer({
       type: Boolean,
       value: true
     },
+    _zoomedToFit: {
+      type: Boolean,
+      value: false
+    },
     scaling: {
       type: Boolean,
       value: false
@@ -479,7 +483,7 @@ Polymer({
   },
 
   _zoomToFit: function() {
-    if (this.zoomedToFit || !this.selected || this.selected.length == 0) {
+    if (this._zoomedToFit || !this.selected || this.selected.length == 0) {
       this._abortZoomToFit();
       return;
     }
@@ -505,7 +509,7 @@ Polymer({
     this._onBoardZoom(this._svg, this.scale);
 
     this.$$('#zoomIcon').icon = 'image:center-focus-weak';
-    this.zoomedToFit = true;
+    this._zoomedToFit = true;
   },
 
   _abortZoomToFit: function() {
@@ -515,7 +519,7 @@ Polymer({
     this._onBoardMove(this._translate.x, this._translate.y);
     this._onBoardZoom(this._svg, this.scale);
     this.$$('#zoomIcon').icon = 'image:center-focus-strong';
-    this.zoomedToFit = false;
+    this._zoomedToFit = false;
   },
 
   _onDisableAutoResizeChanged: function(disableAutoResize) {
@@ -533,6 +537,7 @@ Polymer({
     } else {
       this.scale = Math.max(Math.min(this.scale - 0.1, this.maxScale), this.minScale);
     }
+
      /* Adjusting bar progres to current zoom value. */
     zoomControl.value = this.scale;
     this._onBoardZoom(this._svg, this.scale);
@@ -626,6 +631,12 @@ Polymer({
 
       console.log("Resetting maxScale to 3.0");
       this.maxScale = 3.0;
+
+      if (this._zoomedToFit) {
+        this._zoomedToFit = false;
+        this.$$('#zoomIcon').icon = 'image:center-focus-strong';
+      }
+
       return;
     }
 
@@ -755,7 +766,19 @@ Polymer({
    * implemented) */
   _onZoomChanged: function(event) {
     this.scale = event.detail.value;
-    this.resize();
+    if (this._zoomedToFit && this.bounds != undefined) {
+      var left = this.bounds.left * this.scale,
+      top = this.bounds.top * this.scale,
+      width = this.bounds.width * this.scale,
+      height = this.bounds.height * this.scale;
+      this._translate.x = this.$.container.offsetWidth * 0.5 - (left + width * 0.5);
+      this._translate.y = this.$.container.offsetHeight * 0.5 - (top + height * 0.5);
+      this._onBoardMove(this._translate.x, this._translate.y);
+      this._onBoardZoom(this._svg, this.scale);
+    }
+    else {
+      this.resize();
+    }
   },
 
   _onBoardMove: function(x, y) {

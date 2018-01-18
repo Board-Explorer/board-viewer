@@ -1720,21 +1720,6 @@ Polymer({
       var item = potential.item,
           svgItem = potential.svgItem,
           isPin = item.type == "pin";
-      /* If this is a COMPONENT, check if any of it's pins are
-       * potential matches; if so, don't include the COMPONENT */
-      if (!isPin) {
-        if (item.pins) {
-          for (var i = 0; i < item.pins.length; i++) {
-            for (var j = 0; j < potentials.length; j++) {
-              if (potentials[j].item == item.pins[i]) {
-                /* Skip this COMPONENT; one of its PINs is in the list */
-                return;
-              }
-            }
-          }
-        }
-      }
-
       /* Create a DIV for this item */
       var div = document.createElement('div');
       div.setAttribute('refdes', item.refdes);

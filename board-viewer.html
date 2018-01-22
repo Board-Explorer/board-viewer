@@ -443,9 +443,6 @@ Polymer({
 
   keyBindings: {
     "esc": "_onEscPressed",
-    "f1:keydown": "_onF1Entering",
-    "f1:keyup": "_onF1Leaving",
-    "f2": "_onF2Pressed"
   },
 
   listeners: {
@@ -467,36 +464,39 @@ Polymer({
     }
   },
 
-  _onF1Entering: function(event) {
-    if (this.multiSelectActive) {
+  _onMultiSelectEntering: function(event) {
+    if (event.keyCode == 91 || event.keyCode == 93 || event.keyCode == 224) {
+      if (this.multiSelectActive) {
+        return;
+      }
+
+      this.disableShadow = true;
+      this.multiSelectActive = true;
+
+      this.addFilter("Pins", { type: "PIN", pattern: "*" }, {
+        color: "#00ffff",
+        alwaysVisible: false
+      });
+
+      this.addFilter("Components", { type: "COMPONENT", pattern: "*" }, {
+        color: "#00ffff",
+        alwaysVisible: false
+      });
+    }
+    else {
       return;
     }
-
-    this.disableShadow = true;
-    this.multiSelectActive = true;
-
-    this.addFilter("Pins", { type: "PIN", pattern: "*" }, {
-      color: "#00ffff",
-      alwaysVisible: false
-    });
-
-    this.addFilter("Components", { type: "COMPONENT", pattern: "*" }, {
-      color: "#00ffff",
-      alwaysVisible: false
-    });
   },
 
-  _onF1Leaving: function(event) {
-    this.disableShadow = false;
-    this.multiSelectActive = false;
-    this.removeFilter("Components");
-    this.removeFilter("Pins");
-  },
-
-  _onF2Pressed: function(event) {
-    if (this.selected.length) {
-      this.pop("selected");
-      this._onSelectedChanged(this.selected);
+  _onMultiSelectLeaving: function(event) {
+    if (event.keyCode == 91 || event.keyCode == 93 || event.keyCode == 224) {
+      this.disableShadow = false;
+      this.multiSelectActive = false;
+      this.removeFilter("Components");
+      this.removeFilter("Pins");
+    }
+    else {
+      return;
     }
   },
 
@@ -2444,6 +2444,9 @@ Polymer({
       xhtmlout: false,
       breaks: false
     });
+
+    document.addEventListener('keydown', this._onMultiSelectEntering.bind(this));
+    document.addEventListener('keyup', this._onMultiSelectLeaving.bind(this));
 
     if (this.hasAttribute("board")) {
       this.loadBoard(this.getAttribute("board"));

@@ -348,6 +348,10 @@ Polymer({
       notify: true,
       value: []
     },
+    multiSelectActive: {
+      type: Boolean,
+      value: false
+    },
     /** Disable the shadow while in Active mode */
     disableShadow: {
       type: Boolean,
@@ -432,7 +436,8 @@ Polymer({
     "_mapSvgToBoardData(_svg, _boardData)",
     "_onSelectedChanged(selected, _boardData)",
     "_onDisableAutoResizeChanged(disableAutoResize)",
-    "_onDisableShadowChanged(disableShadow)"
+    "_onDisableShadowChanged(disableShadow)",
+    "_onMultiSelectChanged(multiSelectActive)"
   ],
 
   behaviors: [
@@ -464,41 +469,25 @@ Polymer({
     }
   },
 
-  _onMultiSelectEntering: function(event) {
-    if (event.keyCode == 91 || event.keyCode == 93 || event.keyCode == 224) {
-      if (this.multiSelectActive) {
-        return;
-      }
-
+  _onMultiSelectChanged: function(event) {
+    if (this.multiSelectActive) {
       this.disableShadow = true;
-      this.multiSelectActive = true;
-
       this.addFilter("Pins", { type: "PIN", pattern: "*" }, {
         color: "#00ffff",
         alwaysVisible: false
       });
-
       this.addFilter("Components", { type: "COMPONENT", pattern: "*" }, {
         color: "#00ffff",
         alwaysVisible: false
       });
     }
     else {
-      return;
-    }
-  },
-
-  _onMultiSelectLeaving: function(event) {
-    if (event.keyCode == 91 || event.keyCode == 93 || event.keyCode == 224) {
       this.disableShadow = false;
-      this.multiSelectActive = false;
       this.removeFilter("Components");
       this.removeFilter("Pins");
     }
-    else {
-      return;
-    }
   },
+
 
   _onDisableShadowChanged: function(disableShadow) {
     this._renderShadow();
@@ -2445,8 +2434,15 @@ Polymer({
       breaks: false
     });
 
-    document.addEventListener('keydown', this._onMultiSelectEntering.bind(this));
-    document.addEventListener('keyup', this._onMultiSelectLeaving.bind(this));
+    var meta = navigator.platform.substr(0, 3).toUpperCase() == 'MAC';
+
+    document.addEventListener('keydown', function(event) {
+      this.multiSelectActive = meta ? event.metaKey : event.ctrlKey;
+    }.bind(this));
+
+    document.addEventListener('keyup', function(event) {
+      this.multiSelectActive = meta ? event.metaKey : event.ctrlKey;
+    }.bind(this));
 
     if (this.hasAttribute("board")) {
       this.loadBoard(this.getAttribute("board"));

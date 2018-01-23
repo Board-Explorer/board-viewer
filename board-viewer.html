@@ -348,6 +348,10 @@ Polymer({
       notify: true,
       value: []
     },
+    multiSelectActive: {
+      type: Boolean,
+      value: false
+    },
     /** Disable the shadow while in Active mode */
     disableShadow: {
       type: Boolean,
@@ -432,7 +436,8 @@ Polymer({
     "_mapSvgToBoardData(_svg, _boardData)",
     "_onSelectedChanged(selected, _boardData)",
     "_onDisableAutoResizeChanged(disableAutoResize)",
-    "_onDisableShadowChanged(disableShadow)"
+    "_onDisableShadowChanged(disableShadow)",
+    "_onMultiSelectChanged(multiSelectActive)"
   ],
 
   behaviors: [
@@ -442,7 +447,7 @@ Polymer({
   ],
 
   keyBindings: {
-    'esc': '_onEscPressed'
+    "esc": "_onEscPressed",
   },
 
   listeners: {
@@ -451,8 +456,9 @@ Polymer({
     "touchmove": "_onPinch",
     "wheel": "_onScroll",
     "board.response": "_boardLoaded",
-    "board.error": "_boardLoadError"
+    "board.error": "_boardLoadError",
   },
+
 
   _onEscPressed: function(event) {
     this.selected = [];
@@ -462,6 +468,26 @@ Polymer({
       event.preventDefault();
     }
   },
+
+  _onMultiSelectChanged: function(event) {
+    if (this.multiSelectActive) {
+      this.disableShadow = true;
+      this.addFilter("Pins", { type: "PIN", pattern: "*" }, {
+        color: "#00ffff",
+        alwaysVisible: false
+      });
+      this.addFilter("Components", { type: "COMPONENT", pattern: "*" }, {
+        color: "#00ffff",
+        alwaysVisible: false
+      });
+    }
+    else {
+      this.disableShadow = false;
+      this.removeFilter("Components");
+      this.removeFilter("Pins");
+    }
+  },
+
 
   _onDisableShadowChanged: function(disableShadow) {
     this._renderShadow();
@@ -605,7 +631,6 @@ Polymer({
     if (!Array.isArray(selected)) {
       selected = [ selected ];
     }
-
     /* If no items are actively selected, turn all items into interactive
      * hoverable targets */
     if (selected.length == 0) {
@@ -638,11 +663,6 @@ Polymer({
       }
 
       return;
-    }
-
-    if (!this.multiSelectActive) {
-      this.removeFilter("Pins");
-      this.removeFilter("Components");
     }
 
     this.addFilter("selected", selected, {
@@ -706,10 +726,10 @@ Polymer({
       }
     }.bind(this));
 
-    this.addFilter("selected-pins", pins, {
-      color: "#00ffff",
-      alwaysVisible: false
-    });
+    if (!this.multiSelectActive) {
+      this.removeFilter("Components");
+      this.removeFilter("Pins");
+    }
 
     this.addFilter("selected-connected", connected, {
       color: "#ff8000",
@@ -1799,15 +1819,13 @@ Polymer({
 
     /* If Control is pressed, toggle the state of this item in the
      * selected group */
-    if (event.detail.sourceEvent.ctrlKey) {
-      this.multiSelectActive = true;
+    if (this.multiSelectActive) {
       if (index == -1) {
         this.push("selected", item.refdes);
       } else {
         this.splice("selected", index, 1);
       }
     } else {
-      this.multiSelectActive = false;
       /* Set selected to just this item */
       this.selected = [ item.refdes ];
     }
@@ -2416,8 +2434,19 @@ Polymer({
       breaks: false
     });
 
+    var meta = navigator.platform.substr(0, 3).toUpperCase() == 'MAC';
+
+    document.addEventListener('keydown', function(event) {
+      this.multiSelectActive = meta ? event.metaKey : event.ctrlKey;
+    }.bind(this));
+
+    document.addEventListener('keyup', function(event) {
+      this.multiSelectActive = meta ? event.metaKey : event.ctrlKey;
+    }.bind(this));
+
     if (this.hasAttribute("board")) {
       this.loadBoard(this.getAttribute("board"));
+      this.$.viewer.focus();
     }
   }
 });

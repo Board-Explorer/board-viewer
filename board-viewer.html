@@ -567,6 +567,8 @@ Polymer({
      /* Adjusting bar progres to current zoom value. */
     zoomControl.value = this.scale;
     this._onBoardZoom(this._svg, this.scale);
+
+    event.preventDefault();
   },
 
   setSelected: function(selected) {
@@ -622,6 +624,8 @@ Polymer({
         this._onBoardZoom(this._svg, this.scale);
       }
     }
+
+    event.preventDefault();
   },
 
   _onSelectedChanged: function(selected) {

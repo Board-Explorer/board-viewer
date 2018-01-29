@@ -1,0 +1,2457 @@
+<!--
+@license
+Copyright (C) 2017 Intel Corporation
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../paper-slider/paper-slider.html">
+<link rel="import" href="../iron-ajax/iron-ajax.html">
+<link rel="import" href="../iron-ajax/iron-request.html">
+<link rel="import" href="../iron-flex-layout/iron-flex-layout-classes.html">
+<link rel="import" href="../iron-icon/iron-icon.html">
+<link rel="import" href="../iron-icons/image-icons.html">
+<link rel="import" href="../iron-resizable-behavior/iron-resizable-behavior.html">
+<link rel="import" href="../iron-a11y-keys-behavior/iron-a11y-keys-behavior.html">
+<script src="../es6-shim/es6-shim.min.js"></script>
+<script src="../mustache.js/mustache.min.js"></script>
+<script src="../markdown-it/dist/markdown-it.js"></script>
+
+<script src="svg-injector.js"></script>
+
+<!--
+`<board-viewer>` Provides an interactive hardware board viewer.
+
+There are two functional modes the board-viewer operates in:
+
+1. Interactive. All pins / components are enabled, but none are visible. The
+   user can hover around the board to see pins and their related and/or
+   connected pins, and to activate (click/tap) or select (CTRL+click/tap)
+2. Selection. Interaction is limited to a specific set of pins and their related/
+   connected pins. If disable-shadow is not set, a shadow will obscure all non-active
+   pins.
+
+Example:
+
+    <board-viewer
+      enable-drag
+      enable-zoom
+      selected="I2C,JTAG,J6"
+      board="quark_mcu_dev_kit_d2000">
+    </board-viewer>
+
+The above will load the `quark_mcu_dev_kit_d2000` out of the `boards/`,
+and start by highlighting the graphic components with keywords or ids matching
+`I2C`, `JTAG`, or `J6`.
+
+See [board-explorer](https://github.com/board-explorer/board-explorer) for
+information on creating board files.
+
+If any are active, only the active ones are active
+
+@demo demo/index.html Simple demo showing a statically loaded view.
+-->
+
+<dom-module id='board-viewer'>
+  <template>
+  <style include="iron-flex iron-flex-alignment iron-positioning">
+    /* The board-viewer only uses div and img; reset those elements
+     * to their initial settings within the .board-viewer namespace */
+    :host {
+      display: block;
+      position: absolute;
+      left: 0;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #23ccfc;
+      z-index: 0;
+      overflow: hidden !important;
+    }
+
+    :host div {
+      overflow: visible;
+      box-sizing: content-box;
+    }
+
+    #viewer {
+      cursor: default;
+    }
+
+    :host[enable-drag] #viewer {
+      cursor: move;
+      cursor: -webkit-grab;
+      cursor: -moz-grab;
+      cursor: grab;
+    }
+
+    .drag {
+      cursor: move !important;
+      cursor: -webkit-grabbing !important;
+      cursor: -moz-grabbing !important;
+      cursor: grabbing !important;
+    }
+
+    #svg,
+    #shadow,
+    #filters {
+      display: inline-block;
+      position: absolute;
+      top: 0px;
+      left: 0px;
+    }
+
+    #svg {
+      pointer-events: none;
+    }
+
+    #filters {
+      z-index: 100;
+    }
+
+    #shadow {
+      right: 0px;
+      bottom: 0px;
+      opacity: 0.5;
+      z-index: 50; /* Above the board (0), below filters (100) and pins (200) and controls (300) */
+      pointer-events: none;
+    }
+
+    #shadow.hidden {
+      opacity: 0;
+    }
+
+    #filters > div {
+      position: absolute;
+      opacity: 1;
+      border-width: 2px;
+      border-style: solid;
+      padding: 0.1em;
+      box-sizing: content-box;
+      transition: opacity 0.25s linear;
+      border-radius: 0.25rem;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+      pointer-events: none;
+    }
+
+    #filters > div[pin] {
+      z-index: 200;
+    }
+
+    /* Interactive, if not alwaysVisible, are transparent when not hovered */
+    #filters > div.interactive {
+      pointer-events: all;
+      opacity: 0;
+    }
+
+    /* Hovering over interactive elements makes them full bright */
+    #filters > div.interactive:focus,
+    #filters > div.interactive.hover,
+    #filters > div.interactive.alwaysVisible.hover {
+      opacity: 1;
+    }
+
+    #filters > div.interactive:focus {
+      border-color: yellow;
+    }
+
+    /* alwaysVisible are half dim when not highlighted */
+    #filters > div.alwaysVisible,
+    #filters > div.interactive.alwaysVisible {
+      opacity: 0.5;
+    }
+
+    /* Non-interactive and alwaysVisible are always bright */
+    #filters > div.alwaysVisible:not(.interactive) {
+      opacity: 1;
+    }
+
+    #board {
+      top: 0;
+      left: 0;
+      bottom: 0;
+      right: 0;
+      padding: 0;
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    #viewer {
+      position: relative;
+      box-sizing: border-box;
+      height: 100%;
+      width: 100%;
+    }
+
+    #container {
+      position: absolute;
+      display: inline-block;
+      box-sizing: border-box;
+      top: 0px;
+      left: 0px;
+      height: 100%;
+      width: 100%;
+    }
+
+    #controls {
+      margin-right: 1em;
+      color: #bdbdbd;
+      --iron-icon-fill-color: #bdbdbd;
+    }
+
+    #controls * {
+      z-index: 300; /* Above filters (100) and pins (200) */
+      cursor: pointer;
+    }
+
+    :host[scale-tool] #viewer {
+      background-color: transparent;
+      box-sizing: border-box;
+      background-image: url(unit.svg);
+      background-position: 0px 0px;
+      background-size: 10mm;
+    }
+
+    :host[scale-tool='in'] #viewer {
+      background-size: 1in;
+    }
+
+    :host:not([scale-tool]) #scale-key {
+      display: none;
+    }
+
+    :host[scale-tool] #viewer #scale-key {
+      position: absolute;
+      box-sizing: border-box;
+      right: 5px;
+      bottom: 5px;
+    }
+
+    #scale-key #scale-metric {
+      border: 1px solid var(--color-font);
+      border-top: none;
+      height: 0.5em;
+    }
+
+    #scale-key #scale-units {
+      color: var(--color-font);
+      text-align: center;
+      padding-right: 0.5em;
+    }
+
+    #dpi {
+      width: 1mm;
+      height: 1mm;
+      visibility: hidden;
+      position: absolute;
+      bottom: -1mm;
+      box-sizing: border-box;
+    }
+  </style>
+
+  <div tabindex="0" id="viewer">
+    <iron-request id="boards"></iron-request>
+    <iron-ajax auto handle-as="json" id="board"></iron-ajax>
+
+    <canvas id="shadow"></canvas>
+
+    <div id="container">
+      <div id="svg"><!-- holds the created IMG that SVGInjector() uses--></div>
+      <div id="filters"></div>
+    </div>
+
+    <div id="controls" class="horizontal layout end-justified center">
+      <div id="scale-key" class="horizontal layout baseline">
+        <div id="scale-units"></div>
+        <div id="scale-metric"></div>
+      </div>
+      <template is="dom-if" if="[[enableZoom]]">
+        <paper-slider id="zoomControl"
+          step="0.025" min="[[minScale]]" max="[[maxScale]]" value="[[scale]]"
+          on-immediate-value-changed="_onZoomChanged">
+        </paper-slider>
+      </template>
+      <template is="dom-if" if="[[disableAutoResize]]">
+        <iron-icon icon="image:center-focus-strong" on-tap="_zoomToFit" id="zoomIcon"></iron-icon>
+      </template>
+    </div>
+  </div>
+  <!-- Sample element to calc pixels in a real mesure. -->
+  <div id="dpi"></div>
+</template>
+
+<script>
+"use strict";
+
+Polymer({
+  is: "board-viewer",
+  properties: {
+    /** When set, board will not resize with it's client region. */
+    disableAutoResize: {
+      type: Boolean,
+      value: false,
+      reflectToAttribute: true
+    },
+    /** Whether the zoom operations are available / control is visible. */
+    enableZoom: {
+      type: Boolean,
+      value: false,
+      reflectToAttribute: true
+    },
+    /** Whether dragging the board is enabled. */
+    enableDrag: {
+      type: Boolean,
+      value: false,
+      reflectToAttribute: true
+    },
+    scaleTool: {
+      type: String,
+      reflectToAttribute: true
+    },
+    /** The board name currently loaded (or loading). This will be loaded
+     * out of the *basePath* directory as *basePath/board* */
+    board: {
+      type: String,
+      readOnly: true,
+      notify: true
+    },
+    /** Default scale for the board. 1.0 fills the viewport (while maintaining
+     * aspect ratio.) */
+    defaultScale: {
+      type: Number,
+      value: 0.8
+    },
+    /** Base path for loading meta-data files */
+    basePath: {
+      type: String,
+      value: ""
+    },
+    /** Comma separated list of refdes, keywords, and groups to show.
+     * For example: "JTAG,I2C,J6" */
+    selected: {
+      type: String,
+      notify: true,
+      value: []
+    },
+    multiSelectActive: {
+      type: Boolean,
+      value: false
+    },
+    /** Disable the shadow while in Active mode */
+    disableShadow: {
+      type: Boolean,
+      value: false
+    },
+    _translate: {
+      type: Object,
+      value: {
+        x: 0,
+        y: 0
+      }
+    },
+    _filters: { /* Internal copy of filters */
+      type: Array,
+      value: []
+    },
+    _origin: { /* Used for drag operations */
+      type: Object,
+      value: { x: 0, y: 0 }
+    },
+    _boardData: {
+      type: Array,
+      value: []
+    },
+    _boardElements: {
+      type: Array,
+      value: []
+    },
+    _categories: {
+      type: Array,
+      value: []
+    },
+    _svg: {
+      type: Object
+    },
+    _svgElements: {
+      type: Array,
+      value: []
+    },
+    _firstResize: { /* Has the first resize event been triggered */
+      type: Boolean,
+      value: true
+    },
+    _zoomedToFit: {
+      type: Boolean,
+      value: false
+    },
+    scaling: {
+      type: Boolean,
+      value: false
+    },
+    trackPoints: {
+      type: Array,
+      value: []
+    },
+    keywords: {
+      type: Array,
+      value: []
+    },
+    components: {
+      type: Array,
+      value: []
+    },
+     boundKeys: {
+      type: Array,
+      value: function() {
+        return Object.keys(this.keyBindings).join(' ').split(' ');
+      }
+    },
+    keyEventTarget: {
+      type: Object,
+      value: function() {
+        return document.body;
+      }
+    }
+  },
+
+  observers: [
+    "_onScaleToolChange(scaleTool)",
+    "_onEnableDrag(enableDrag)",
+    "_onEnableZoom(enableZoom)",
+    "_mapSvgToBoardData(_svg, _boardData)",
+    "_onSelectedChanged(selected, _boardData)",
+    "_onDisableAutoResizeChanged(disableAutoResize)",
+    "_onDisableShadowChanged(disableShadow)",
+    "_onMultiSelectChanged(multiSelectActive)"
+  ],
+
+  behaviors: [
+    /* @polymerBehavior Polymer.IronResizableBehavior */
+    Polymer.IronResizableBehavior,
+    Polymer.IronA11yKeysBehavior
+  ],
+
+  keyBindings: {
+    "esc": "_onEscPressed",
+  },
+
+  listeners: {
+    "tap": "_onTap",
+    "iron-resize" : "resize",
+    "touchmove": "_onPinch",
+    "wheel": "_onScroll",
+    "board.response": "_boardLoaded",
+    "board.error": "_boardLoadError",
+  },
+
+
+  _onEscPressed: function(event) {
+    this.selected = [];
+    var target = event.detail.keyboardEvent.target;
+    if (this.contains(target)) {
+      this.$.viewer.focus();
+      event.preventDefault();
+    }
+  },
+
+  _onMultiSelectChanged: function(event) {
+    if (this.multiSelectActive) {
+      this.disableShadow = true;
+      this.addFilter("Pins", { type: "PIN", pattern: "*" }, {
+        color: "#00ffff",
+        alwaysVisible: false
+      });
+      this.addFilter("Components", { type: "COMPONENT", pattern: "*" }, {
+        color: "#00ffff",
+        alwaysVisible: false
+      });
+    }
+    else {
+      this.disableShadow = false;
+      this.removeFilter("Components");
+      this.removeFilter("Pins");
+    }
+  },
+
+
+  _onDisableShadowChanged: function(disableShadow) {
+    this._renderShadow();
+  },
+
+  _onTap: function(event) {
+    console.log("_onTap");
+    event.target.focus();
+
+    /* If this is a tap on the zoom icon, ignore it */
+    if (event.target.getAttribute("icon") == "image:center-focus-strong" ||
+        event.target.getAttribute("icon") == "image:center-focus-weak" ||
+        event.target.getAttribute("id") == "sliderContainer") {
+      return;
+    }
+    /* If the board-viewer is tapped on, clear the selected items */
+    this.selected = [];
+    event.preventDefault();
+  },
+
+  _zoomToFit: function() {
+    if (this._zoomedToFit || !this.selected || this.selected.length == 0) {
+      this._abortZoomToFit();
+      return;
+    }
+
+    this._calculateSelectedBounds();
+
+    if (!this.selectionScale) {
+      this.scale = this.minScale;
+    } else {
+      this.scale = this.selectionScale;
+    }
+    console.log("Zoomed to " + this.scale);
+
+    var left = this.bounds.left * this.scale,
+        top = this.bounds.top * this.scale,
+        width = this.bounds.width * this.scale,
+        height = this.bounds.height * this.scale;
+
+    this._translate.x = this.$.container.offsetWidth * 0.5 - (left + width * 0.5);
+    this._translate.y = this.$.container.offsetHeight * 0.5 - (top + height * 0.5);
+
+    this._onBoardMove(this._translate.x, this._translate.y);
+    this._onBoardZoom(this._svg, this.scale);
+
+    this.$$('#zoomIcon').icon = 'image:center-focus-weak';
+    this._zoomedToFit = true;
+  },
+
+  _abortZoomToFit: function() {
+    this.scale = this.fitScale;
+    this._translate.x = this.offsetWidth * 0.5;
+    this._translate.y = this.offsetHeight * 0.5;
+    this._onBoardMove(this._translate.x, this._translate.y);
+    this._onBoardZoom(this._svg, this.scale);
+    this.$$('#zoomIcon').icon = 'image:center-focus-strong';
+    this._zoomedToFit = false;
+  },
+
+  _onDisableAutoResizeChanged: function(disableAutoResize) {
+    if (!disableAutoResize) {
+      this.resize();
+    }
+  },
+
+  _onScroll: function(event) {
+    /* Getting zoom-bar. */
+    var zoomControl = this.$$('#zoomControl');
+     /* Inverted aim. */
+    if (event.deltaY < 0) {
+      this.scale = Math.max(Math.min(this.scale + 0.1, this.maxScale), this.minScale);
+    } else {
+      this.scale = Math.max(Math.min(this.scale - 0.1, this.maxScale), this.minScale);
+    }
+
+     /* Adjusting bar progres to current zoom value. */
+    zoomControl.value = this.scale;
+    this._onBoardZoom(this._svg, this.scale);
+
+    event.preventDefault();
+  },
+
+  setSelected: function(selected) {
+    if (!Array.isArray(selected)) {
+      selected = [ selected ];
+    }
+    this.selected = selected.slice();
+  },
+
+  _onPinch: function(event) {
+    /* Detecting single or none touches: */
+    if (event.changedTouches.length < 2) {
+      // When scaling is on, then end.
+      if (this.scaling) {
+        this.trackPoints = [];
+        this.scaling = false;
+      } else {
+        /* A single touch, returning track listener to defult state. */
+        this.enableDrag ? this.listen(this, 'track', '_onTrack') : this.unlisten(this, 'track', '_onTrack');
+      }
+    } else {
+      if (!this.scaling && event.changedTouches.length == 2) {
+        /* When a couple of touches are detected, start scaling. */
+        /* forcing to disable track listener while scaling. */
+        this.unlisten(this, 'track', '_onTrack');
+        this.scaling = true;
+      }
+    }
+
+    /* Maths while scaling: */
+    if (this.scaling) {
+      /* Calculating distance between finger touches. */
+      var dist = Math.sqrt(
+        Math.pow(event.changedTouches[0].clientX - event.changedTouches[1].clientX, 2) +
+        Math.pow(event.changedTouches[0].clientY - event.changedTouches[1].clientY, 2)
+      );
+      /* Storing distances to compare. */
+      this.trackPoints.push(dist);
+      /* We need to compare the last two distances stored to determine if,
+      is a zoom in or zoom out. */
+      if (this.trackPoints.length >= 2) {
+        var finalDistance = this.trackPoints[this.trackPoints.length - 1];
+        var initialDistance = this.trackPoints[this.trackPoints.length - 2];
+        var zoomControl = this.$$('#zoomControl');
+        /* Pinch is growing, then zoom in. */
+        if (finalDistance > initialDistance) {
+          this.scale = Math.max(Math.min(this.scale + 0.1, this.maxScale), this.minScale);
+        } else {
+          this.scale = Math.max(Math.min(this.scale - 0.1, this.maxScale), this.minScale);
+        }
+        zoomControl.value = this.scale;
+
+        this._onBoardZoom(this._svg, this.scale);
+      }
+    }
+
+    event.preventDefault();
+  },
+
+  _onSelectedChanged: function(selected) {
+    if (typeof selected === "string") {
+      selected = selected.split(",");
+    }
+    if (!Array.isArray(selected)) {
+      selected = [ selected ];
+    }
+    /* If no items are actively selected, turn all items into interactive
+     * hoverable targets */
+    if (selected.length == 0) {
+      console.log("No selection -- adding all items as interactive");
+
+      this.removeFilter("selected");
+      this.removeFilter("selected-connected");
+      this.removeFilter("selected-related");
+      this.removeFilter("selected-pins");
+
+      /* Turn on the 'Everything' interactive filters;
+       * Pins will be Green
+       * Components will be Cyan */
+      this.addFilter("Pins", { type: "PIN", pattern: "*" }, {
+        color: "#00ffff",
+        alwaysVisible: false
+      });
+
+      this.addFilter("Components", { type: "COMPONENT", pattern: "*" }, {
+        color: "#00ffff",
+        alwaysVisible: false
+      });
+
+      console.log("Resetting maxScale to 3.0");
+      this.maxScale = 3.0;
+
+      if (this._zoomedToFit) {
+        this._zoomedToFit = false;
+        this.$$('#zoomIcon').icon = 'image:center-focus-strong';
+      }
+
+      return;
+    }
+
+    this.addFilter("selected", selected, {
+      color: "#ffff00",
+      interactive: true,
+      alwaysVisible: true
+    });
+
+    var connected = [], related = [], pins = [];
+    selected.forEach(function(filter) {
+      var item = this.findComponent(filter);
+      if (!item) {
+        /* If is not a component, then we look if is a keyword. */
+        if (this.keywords.indexOf(filter) != -1) {
+          item = {
+            refdes: filter,
+            type: "keyword"
+          };
+        }
+        else {
+          return;
+        }
+      }
+
+      switch (item.type) {
+        case "component":
+        case "pin":
+          if (!item.pins) {
+            item.pins = [];
+          }
+          for (var i = 0; i < item.pins.length; i++) {
+            if (pins.indexOf(item.pins[i].refdes) == -1) {
+              pins.push(item.pins[i].refdes);
+            }
+          }
+          /* Walk through the list of connected elements; if not in the list of
+           * connections, add it */
+          if (!item.connected) {
+            item.connected = [];
+          }
+          for (var i = 0; i < item.connected.length; i++) {
+            if (connected.indexOf(item.connected[i]) == -1) {
+              connected.push(item.connected[i]);
+            }
+          }
+          /* Walk through the list of connected elements; if not in the list of
+           * connections, add it */
+          if (!item.related) {
+            item.related = [];
+          }
+          for (var i = 0; i < item.related.length; i++) {
+            if (related.indexOf(item.related[i]) == -1) {
+              related.push(item.related[i]);
+            }
+          }
+          break;
+
+        case "keyword":
+          connected = this.getConnectedElementsByKeyword(item.refdes);
+          break;
+      }
+    }.bind(this));
+
+    if (!this.multiSelectActive) {
+      this.removeFilter("Components");
+      this.removeFilter("Pins");
+    }
+
+    this.addFilter("selected-connected", connected, {
+      color: "#ff8000",
+      alwaysVisible: true,
+      interactive: true
+    });
+
+    this.addFilter("selected-related", related, {
+      color: "#00ff00",
+      alwaysVisible: true,
+      interactive: true
+    });
+
+    console.log("Resetting maxScale to selection fit.");
+    this._calculateSelectedBounds();
+  },
+
+  getItemsByKeyword: function(keyword, item) {
+    keyword = keyword ? keyword.toUpperCase() : "";
+
+    var matches = [];
+
+    /* Walk through all components and then all their pins looking
+     * for keyword matches */
+    for (var i = 0; i < this._boardData.length; i++) {
+      var item = this._boardData[i];
+      /* If the keyword is on the component, add the component */
+      if (item.keywords && item.keywords.length) {
+        if (item.keywords.indexOf(keyword) != -1) {
+          matches.push(item);
+        }
+      } else if (!keyword) {
+        matches.push(item);
+      }
+
+      if (item.pins) {
+        item.pins.forEach(function(pin) {
+          /* If the keyword is on the component, add the component */
+          if (pin.keywords && pin.keywords.length) {
+            if (pin.keywords.indexOf(keyword) != -1) {
+              matches.push(pin);
+            }
+          } else if (!keyword) {
+            matches.push(pin);
+          }
+        });
+      }
+    }
+
+    return matches;
+  },
+
+  /* This needs to be connected to the zoom slider control (currently not
+   * implemented) */
+  _onZoomChanged: function(event) {
+    this.scale = event.detail.value;
+    if (this._zoomedToFit && this.bounds != undefined) {
+      var left = this.bounds.left * this.scale,
+      top = this.bounds.top * this.scale,
+      width = this.bounds.width * this.scale,
+      height = this.bounds.height * this.scale;
+      this._translate.x = this.$.container.offsetWidth * 0.5 - (left + width * 0.5);
+      this._translate.y = this.$.container.offsetHeight * 0.5 - (top + height * 0.5);
+      this._onBoardMove(this._translate.x, this._translate.y);
+      this._onBoardZoom(this._svg, this.scale);
+    }
+    else {
+      this.resize();
+    }
+  },
+
+  _onBoardMove: function(x, y) {
+    /* Can get called during initialization before DOM stamped */
+    var container = this.$.container;
+    if (!container) {
+      return;
+    }
+    container.style.top = y + 'px';
+    container.style.left = x + 'px';
+
+    this._renderShadow();
+
+    /* Work around Firefox issue #612118; getBBox() throws an exception if
+     * the SVG is not being rendered */
+    try {
+      var bb = this._svg.getBBox();
+      this.$.viewer.style.backgroundPosition =
+        "calc(" + x + "px - " + (bb.width * this.scale * 0.5) + "mm) " +
+        "calc(" + y + "px - " + (bb.height * this.scale * 0.5) + "mm)";
+    } catch (_) {
+    }
+
+    Polymer.dom.flush();
+  },
+
+  _onScaleToolChange: function() {
+    this._onBoardZoom(this._svg, this.scale);
+  },
+
+  _onBoardZoom: function(svg, scale) {
+    if (!svg) {
+      return;
+    }
+
+    var transform = '', style = '', bb;
+
+    /* Work around Firefox issue #612118; getBBox() throws an exception if
+     * the SVG is not being rendered */
+    try {
+      bb = svg.getBBox();
+    } catch (_) {
+      return;
+    }
+
+    transform = "translate("
+      + -bb.width  * scale * 0.5 + "mm,"
+      + -bb.height * scale * 0.5 + "mm)";
+    style += '-webkit-transform:' + transform + ';';
+    style += '-ms-transform:' + transform + ';';
+    style += '-moz-transform:' + transform + ';';
+    style += 'transform:' + transform + ';';
+    style += 'width: ' + bb.width * scale + 'mm;';
+    style += 'height: ' + bb.height * scale + 'mm;';
+    this.$.svg.style.cssText = style;
+
+    /* Setting a minimum value for grid units, mm are to small to render one by
+     * one properly so, 10 mm seems to be ok for the space in the grid lines. */
+    if (this.scaleTool !== undefined) {
+      /* If not explicitly inches, force to mm */
+      var unit = "mm", units =10;
+
+      if (this.scaleTool == "in" || this.scaleTool == "inches") {
+        unit = "in";
+        units = 1;
+      }
+
+      /* Updating scale for the grid. */
+      var scaledMetric = (units * this.scale * this.pixelsInMm) + unit;
+      this.$.viewer.style.backgroundPosition =
+        "calc(" + this._translate.x + "px - " + (bb.width * scale * 0.5) + "mm) " +
+        "calc(" + this._translate.y + "px - " + (bb.height * scale * 0.5) + "mm)";
+      this.$.viewer.style.backgroundSize = scaledMetric + " " + scaledMetric;
+
+      this.$["scale-units"].textContent = units + unit;
+      this.$["scale-metric"].style.width = scaledMetric;
+    }
+
+     Polymer.dom.flush();
+
+    /* Unhide the SVG itself; we hide it when the board is being loaded. We
+     * don't show it until now because the style for the parent (this.$.svg)
+     * would have it in the wrong spot */
+    this._svg.style.width = "100%";
+    this._svg.style.height = "100%";
+    this._svg.style.visibility = 'visible';
+
+    this._calculateSVGElements();
+    this._filters.forEach(this._populateFilter, this);
+    this._renderShadow();
+  },
+
+  _calculateSVGElements: function() {
+    var offset = this.getBoundingClientRect();
+
+    this._svgElements.forEach(function(svgItem) {
+      var rect = svgItem.el.getBoundingClientRect();
+      svgItem.rect = {
+        top: rect.top + rect.height * 0.5 - this._translate.y - offset.top + 'px',
+        left: rect.left + rect.width * 0.5 - this._translate.x - offset.left + 'px',
+        width: rect.width + 'px',
+        height: rect.height + 'px'
+      }
+    }, this);
+  },
+
+  _onEnableDrag: function(enabled) {
+    if (!enabled) {
+      this.unlisten(this, 'track', '_onTrack');
+    } else {
+      this.listen(this, 'track', '_onTrack');
+    }
+  },
+
+  _onEnableZoom: function(enabled) {
+    if (!enabled) {
+      if (this.$$('#zoomControl')) {
+        this.$$('#zoomControl').setAttribute('disabled', '');
+      }
+      this.unlisten(this, 'touchmove', '_onPinch');
+      this.unlisten(this, 'wheel', '_onScroll');
+    } else {
+      if (this.$$('#zoomControl')) {
+        this.$$('#zoomControl').removeAttribute('disabled');
+      }
+
+      this.listen(this, 'touchmove', '_onPinch');
+      this.listen(this, 'wheel', '_onScroll');
+    }
+  },
+
+  _onTrack: function(event) {
+    event.preventDefault();
+
+    if (event.detail.state == 'start') {
+      event.target.classList.add('drag');
+      this.$.viewer.classList.add('drag');
+      this._origin = {
+        x: this._translate.x,
+        y: this._translate.y
+      }
+    }
+
+    this._translate.x = this._origin.x + event.detail.dx;
+    this._translate.y = this._origin.y + event.detail.dy;
+    this._onBoardMove(this._translate.x, this._translate.y);
+
+    if (event.detail.state == 'end') {
+      Array.prototype.forEach.call(this.querySelectorAll('.drag'),
+        function(el) {
+        el.classList.remove('drag');
+      });
+      this._origin.x = this._translate.x;
+      this._origin.y = this._translate.y;
+    }
+  },
+
+  /* Look up the item corresponding to the provided
+   * refdes
+   *
+   * @param {String} refdes Reference designator to look up, for example J6Pin4
+   * @returns {Object}
+   */
+  findComponent: function(refdes) {
+    if (!refdes) {
+      return null;
+    }
+
+    refdes = refdes.toUpperCase();
+    var parts = refdes.split("PIN"),
+      isPin = parts.length == 2,
+      component = null;
+
+    /* Look up the component first */
+    for (var i = 0; i < this._boardData.length; i++) {
+      if (this._boardData[i].refdes &&
+        this._boardData[i].refdes.toUpperCase() == parts[0]) {
+        component = this._boardData[i];
+        break;
+      }
+    }
+
+    if (!component) {
+      return null;
+    }
+
+    /* If the inbound refdes isn't a pin, return the component */
+    if (!isPin) {
+      return component;
+    }
+
+    /* If no pins are on this component, we can't find the requested pin,
+     * so return null */
+    if (!component.pins) {
+      return null;
+    }
+
+    /* Look for the pin in this component */
+    for (var i = 0; i < component.pins.length; i++) {
+      if (component.pins[i].refdes.toUpperCase() == refdes) {
+        return component.pins[i];
+      }
+    }
+
+    /* No matches anywhere... return null */
+    return null;
+  },
+
+  /* Return a category object.
+   *
+   * @param {String} category slug.
+   */
+  findCategory: function(slug) {
+    var category = null;
+    if (slug) {
+      slug = slug.toUpperCase();
+      for (var i = 0; i < this._categories.length; i++) {
+        if (this._categories[i].slug.toUpperCase() === slug) {
+          category = this._categories[i];
+          break;
+        }
+      }
+    }
+    return category;
+  },
+
+  /** Load a new board.
+   *
+   * @param {String} board The name of the board to load.
+   */
+  loadBoard: function(board) {
+    /* Do not attempt to re-load the same board multiple times */
+    if (this._board == board) {
+      return;
+    }
+
+    this._board = board;
+
+    /* Delete any children of the svg container */
+    var element = this.$.svg;
+    while (element.firstChild) {
+      element.removeChild(element.firstChild);
+    }
+
+    this._svg = null;
+    this._boardData = [];
+    this._categories = [];
+
+    /* Remove all the filters for the current board */
+    this.removeFilter();
+    this._renderShadow();
+
+    this._setBoard("");
+
+    if (!board || board == '') {
+      return;
+    }
+
+    console.log('Loading ' + board + ' into board-viewer.');
+    var url = this.basePath + "boards/" + this._board + "/board.json";
+    if (this.$.board.url == url) {
+      this.$.board.generateRequest();
+    } else {
+      this.$.board.url = url;
+    }
+  },
+
+  _boardLoaded: function(event) {
+    console.log("Parsing " + this._board);
+
+    var image = document.createElement('img');
+
+    image.style.visibility = 'hidden';
+
+    /* SVGInjector replaces 'image' with the svg it constructs
+     *
+     * Add the image to the document body; if we add it to the board-viewer,
+     * and the board-viewer is currently 'display: none', the SVG does not
+     * get setup correctly. */
+    document.body.appendChild(image);
+
+    /* Do not inject the SVG until after the SVG has completed
+     * loading into the main image, otherwise there is a race
+     * c_onDition which can result in the SVG never showing up */
+    image.onload = function(board) {
+      if (board != this._board) {
+        console.log("Discarding load of older board {IMG}.");
+        return;
+      }
+
+      SVGInjector(image, {
+        evalScripts: 'once',
+        each: function(svg) {
+          if (board != this._board) {
+            console.log("Discarding load of older board {SVG}.");
+            return;
+          }
+
+          if (typeof svg == 'string') {
+            console.log('ERROR: ' + svg);
+            return;
+          }
+
+          /* If this board is already loaded by a concurrent load instance,
+           * don't parse it again. This sequence could occur if multiple
+           * loadBoard() calls are made rapidly switching between a two
+           * boards while the assets from one are still loading or being
+           * parsed. loadBoard(A), then before A finishes loading, loadBoard(B)
+           * then loadBoard(A) again. Two SVGLoaders could fire concurrently;
+           * only one should be processed. */
+          if (this.$.svg.firstChild &&
+            this.$.svg.firstChild.getAttribute('board') == this._board) {
+            console.log("Not re-loading/parsing the same board more than once");
+            return;
+          }
+
+          Polymer.dom.flush();
+
+          svg.setAttribute('board', this._board);
+          /* Trim off any whitespace/viewbox padding from the SVG
+           * asset */
+          var bb = svg.getBBox();
+          svg.setAttribute('viewBox', bb.x + ' ' + bb.y + ' ' + bb.width + ' ' + bb.height);
+          svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+          this.scale = 1;
+          this._translate.x = this.offsetWidth * 0.5;
+          this._translate.y = this.offsetHeight * 0.5;
+
+          /* Caches the _original (unscaled or translated) bounding rectangle
+          * for use when constructing new highlight rectangles */
+          this._svgElements = [];
+
+          Array.prototype.forEach.call(svg.querySelectorAll('[id^="BV_"]'),
+            function(el) {
+            this._svgElements.push({
+              refdes: el.id.replace(/^BV_/, ''),
+              el: el
+            });
+          }, this);
+
+          console.log("Binding board image to the DOM");
+
+          Polymer.dom.flush();
+          this.updateStyles();
+
+          this.$.svg.appendChild(svg);
+
+          this._firstResize = true; /* Re-trigger a scaling resize */
+
+          /* Set this._svg at the end so _mapSvgToBoardData doesn't trigger
+           * until the DOM is populated with the SVG */
+          this._svg = svg;
+
+          /* If there are no selected items when the board finishes loading,
+           * add the default "no selection, everything interactive" filters */
+          if (!this.selected || !this.selected.length) {
+            /* Turn on the 'Everything' interactive filters;
+             * Pins will be Green
+             * Components will be Cyan */
+            this.addFilter("Pins", { type: "PIN", pattern: "*" }, {
+              color: "#00ffff",
+              alwaysVisible: false
+            });
+
+            this.addFilter("Components", { type: "COMPONENT", pattern: "*" }, {
+              color: "#00ffff",
+              alwaysVisible: false
+            });
+          }
+        }.bind(this)
+      });
+    }.bind(this, this._board);
+
+    var data = this.$.board.lastResponse;
+
+    /* For now we only support one side of the board -- front. */
+    image.src = "boards/" + this._board + "/" + data.views.front.image;
+
+    var categoryList = data.categories;
+    data = data.views.front.components;
+    var components = [];
+
+    this.keywords = [];
+
+    /* Walk through all of the components and build item, keywords, and
+     * component data */
+    for (var key in data) {
+      if (typeof data[key] != 'object') {
+        console.log("Skipping non object '" + key + ".'");
+        continue;
+      }
+
+      /* Create "smart" defaults based on normal structures */
+      var component = Object.assign({
+        refdes: key,
+        readable: key,
+        name: key,
+        connected: [],
+        keywords: [],
+        related: []
+      }, data[key]);
+
+      /* Do not let the JSON override the type */
+      component.type = "component";
+
+      for (var i = 0; i < component.keywords.length; i++) {
+        var keyword = component.keywords[i].toUpperCase();
+        component.keywords[i] = keyword;
+        if (this.keywords.indexOf(keyword) == -1) {
+          this.keywords.push(keyword);
+        }
+      }
+
+      components.push(component);
+
+      /* If the component has pins, then add them */
+      if ("pins" in data[key]) {
+        component.pins = [];
+        for (var id in data[key].pins) {
+          var isJumper = component.keywords && (component.keywords.indexOf("JUMPER") != -1),
+            readable;
+
+          if (isJumper) {
+            readable = component.refdes + " Pins " + id.substr(0, 1) + "-" + id.substr(1, 1);
+          } else {
+            readable = component.refdes + " Pin " + id;
+          }
+
+          /* Create "smart" defaults based on normal structures */
+          var item = Object.assign({
+            refdes: component.refdes + "Pin" + id,
+            readable: readable,
+            name: readable,
+            component: component.refdes,
+            connected: [],
+            related: [],
+            keywords: []
+          }, data[key].pins[id]);
+
+          /* Do not let the JSON override the type */
+          item.type = "pin";
+
+          for (var i = 0; i < item.keywords.length; i++) {
+            var keyword = item.keywords[i].toUpperCase();
+
+            item.keywords[i] = keyword;
+
+            /* Ensure that the parent component is the superset of all
+             * keywords of all contained pins */
+            if (component.keywords.indexOf(keyword) == -1) {
+              component.keywords.push(keyword);
+            }
+
+            /* If this keyword is not in the global list of keywords, add it */
+            if (this.keywords.indexOf(keyword) == -1) {
+              this.keywords.push(keyword);
+            }
+          }
+
+          item.keywords = item.keywords.sort();
+          component.keywords = component.keywords.sort();
+
+          component.pins.push(item);
+        }
+      }
+    }
+
+    /* Set this.keywords to a sorted list of all keywords */
+    this.keywords = this.keywords.sort();
+
+    /* Set this.components to a sorted list of component refdes */
+    var list = [];
+    components.forEach(function(component) {
+      list.push(component.refdes);
+    });
+    /* Sort the components, supporting numerical sorting in names */
+    this.components = list.sort(function(a, b) {
+      var partsA = a.match(/([^0-9]*)([0-9]*)(.*)/),
+        partsB = b.match(/([^0-9]*)([0-9]*)(.*)/),
+        results = partsA[1].localeCompare(partsB[1]);
+      if (results != 0) {
+        return results;
+      }
+      results = partsA[2] - partsB[2];
+      if (results != 0) {
+        return results;
+      }
+      return partsA[3].localeCompare(partsB[3]);
+    });
+
+    /* Set _boardData first since findComponent is used when configuring
+     * categories. */
+    this._boardData = components;
+
+    this._boardData = this.updateComponents(this._boardData);
+
+
+    var categories = [];
+    if (categoryList) {
+      if (!Array.isArray(categoryList)) {
+        console.warn("'categories' should be an array of { name: string, list: []}");
+      } else {
+        categoryList.forEach(function(category, index) {
+          var entry = {
+            list: []
+          };
+          if (!category.name || typeof category.name !== 'string') {
+            console.warn("'name' is missing or not a string in category #" + index);
+            return;
+          }
+          if (!category.list || !Array.isArray(category.list)) {
+            console.warn("'list' is missing or not an array in category #" + index);
+            return;
+          }
+
+          entry.type = "category";
+          entry.name = category.name;
+          entry.slug = escape(category.name.toLowerCase().replace(/[^\w ]+/g,'').replace(/ +/g,'-'));
+          entry.refdes = entry.slug;
+
+          category.list.forEach(function(term) {
+            term = term.toUpperCase();
+            var item = this.findComponent(term);
+            if (!item && this.keywords.indexOf(term) == -1) {
+              console.warn("'" + term + "' listed in category #" + index + " does not exist.");
+              return;
+            }
+            entry.list.push(term);
+          }.bind(this));
+
+          categories.push(entry);
+        }.bind(this));
+      }
+    }
+
+    this._categories = categories;
+    this._setBoard(this._board);
+  },
+
+  _boardLoadError: function(event) {
+    console.log("Unable to load boards/" + this._board + ".json");
+  },
+
+  hasFilter: function(name) {
+    for (var i = 0; i < this._filters.length; i++) {
+      if (this._filters[i].name == name) {
+        return true;
+      }
+    }
+
+    return false;
+  },
+
+  updateComponents: function(components) {
+    /* Build connected aliases, (A => C => B) := (ABC). */
+    for (var i = 0; i < components.length; i ++) {
+      components[i].connected = this._getConnectedAlias(components[i]);
+      if (components[i].pins) {
+        for (var j = 0; j < components[i].pins.length; j ++) {
+          components[i].pins[j].connected = this._getConnectedAlias(components[i].pins[j]);
+        }
+      }
+    }
+
+    /* Propagete relations in each component whitin an connected alias,
+     * (AC => B) := (A => B, C => B).  */
+    for (var i = 0; i < components.length; i ++) {
+      components[i].related = this._propagateRelations(components[i]);
+      if (components[i].pins) {
+        for (var j = 0; j < components[i].pins.length; j ++) {
+          components[i].pins[j].related = this._propagateRelations(components[i].pins[j]);
+        }
+      }
+    }
+
+    /* Get reverse relations, (A => B) := (B => A). */
+    for (var i = 0; i < components.length; i ++) {
+      components[i].related = this._getReverseRelations(components[i]);
+      if (components[i].pins) {
+        for (var j = 0; j < components[i].pins.length; j ++) {
+          components[i].pins[j].related = this._getReverseRelations(components[i].pins[j]);
+        }
+      }
+    }
+
+    /* Clean self references. */
+    for (var i = 0; i < components.length; i ++) {
+      components[i].connected.shift();
+      if (components[i].pins) {
+        for (var j = 0; j < components[i].pins.length; j ++) {
+          components[i].pins[j].connected.shift();
+        }
+      }
+    }
+
+    return components;
+  },
+
+  _getConnectedAlias: function (component) {
+    var connections = component.connected ? component.connected : [], i;
+    /* Append the self reference to complete the whole connected alias,
+     * once all componets are updated remove it. */
+    connections.unshift(component.refdes);
+    /* Get components that are connected to the current conections,
+     * And repeat while getting more connections. */
+    i = 0;
+    do {
+      connections = this._searchBackConnections(connections[i], connections);
+      i++;
+    } while(i < connections.length);
+    i = 0;
+    do {
+      connections = this._searchFowardConnections(connections[i], connections);
+      i++;
+    } while(i < connections.length);
+
+    return connections;
+  },
+
+  _searchBackConnections: function(refdes, currentConnections) {
+    /* Look all components and find those components that are connected,
+     * To the refes given. */
+    var components =  this._boardData, connections = currentConnections;
+    for (var i = 0; i < components.length; i++) {
+      var connected = components[i].connected;
+      /* Adding the component if there are not in the current connections set */
+      if (connected && connected.indexOf(refdes) != -1
+        && connections.indexOf(components[i].refdes) == -1) {
+        connections.push(components[i].refdes);
+      }
+      /* If the component have pins, do the same on them */
+      if (components[i].pins) {
+        var pins =  components[i].pins;
+        for (var j = 0; j < pins.length; j++) {
+          connected = pins[j].connected;
+          if (connected && connected.indexOf(refdes) != -1
+            && connections.indexOf(pins[j].refdes) == -1) {
+            connections.push(pins[j].refdes);
+          }
+        }
+      }
+    }
+
+    return connections;
+  },
+
+  _searchFowardConnections: function(refdes, currentConnections) {
+    var component = this.findComponent(refdes), connections = currentConnections;
+    /* Only if we found the component. */
+    if (component) {
+      /* Get the connected set to start to find the refdes within. */
+      var connected = component.connected;
+      /* Walk connected set and all those refdes which are not,
+       * in the current connections. */
+      if (connected) {
+        for (var i = 0; i < connected.length; i++) {
+          if (connections.indexOf(connected[i]) == -1){
+            connections.push(connected[i]);
+          }
+        }
+      }
+    }
+    return connections;
+  },
+
+  _propagateRelations: function(component) {
+    var connections = component.connected,
+    relations = component.related ? component.related : [];
+    /* Once all the connected alias is complete, walk each component. */
+    for (var i = 0; i < connections.length; i++) {
+      var connectedComponent = this.findComponent(connections[i]);
+      if (connectedComponent) {
+        /* And get all the related set in ech connected component. */
+        var relatedComponents = connectedComponent.related ? connectedComponent.related : [];
+        for (var j = 0; j < relatedComponents.length; j++) {
+          /* Get the component details to see if we can inherit more realations,
+           * based on the connected set. */
+          var heir = this.findComponent(relatedComponents[j]);
+          /* If the component given relations has not the relation whitin,
+           * the add it. */
+          if (relations.indexOf(heir.refdes) == -1
+            && connections.indexOf(heir.refdes) == -1) {
+            relations.push(heir.refdes);
+          }
+          /* If the relation has also a connected set,
+           * then add the refdes as a relation */
+          if (heir.connected) {
+            for (var k = 0; k < heir.connected.length; k++) {
+              if (relations.indexOf(heir.connected[k]) == -1
+                 && connections.indexOf(heir.refdes) == -1) {
+                relations.push(heir.connected[k]);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return relations;
+  },
+
+  _getReverseRelations: function(component) {
+    var components =  this._boardData,
+    connections = component.connected,
+    relations = component.related;
+    /* Start to find components that are related to the given component. */
+    for (var i = 0; i < components.length; i++) {
+      var related = components[i].related;
+      if (related) {
+        if (related.indexOf(component.refdes) != -1) {
+          for (var j = 0; j < components[i].connected.length; j++) {
+            if (connections.indexOf(components[i].connected[j]) == -1
+              && relations.indexOf(components[i].connected[j]) == -1) {
+              relations.push(components[i].connected[j]);
+            }
+          }
+        }
+      }
+      /* Do the same if for the pins */
+      if (components[i].pins) {
+        var pins =  components[i].pins;
+        for (var j = 0; j < pins.length; j++) {
+          related = pins[j].related;
+          if (related) {
+            if (related.indexOf(component.refdes) != -1) {
+              for (var k = 0; k < pins[j].connected.length; k++) {
+                if (connections.indexOf(pins[j].connected[k] == -1)
+                  && relations.indexOf(pins[j].connected[k]) == -1) {
+                  relations.push(pins[j].connected[k]);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return relations;
+  },
+
+  /** Get the list of component categories.
+   */
+  getCategories: function() {
+    return this._categories;
+  },
+
+  /** Add a filter.
+   *
+   * @param {String} name The name of the filter.
+   * @param {Object} match Parameters for the filter match criteria.
+   * @param {Object} options Style and interaction attributes for this filter.
+   */
+  addFilter: function(name, match, options) {
+    if (!this._filters) {
+      this._filters = [];
+    }
+
+    for (var i = 0; i < this._filters.length; i++) {
+      if (this._filters[i].name == name) {
+        this.removeFilter(name);
+        break;
+      }
+    }
+
+    /* Assign default values to the options */
+    options = Object.assign({
+      color: "#00ff00",
+      alwaysVisible: false,
+      interactive: true
+    }, options || {});
+
+    if (!this.filterIndex) {
+      this.filterIndex = 1;
+    }
+
+    if (typeof match === "string") {
+      match = {
+        type: "ALL",
+        pattern: match
+      }
+    }
+
+    /* If the match is an array, we can assume that is a LIST type filter */
+    if (Array.isArray(match)) {
+      match = {
+        type: "LIST",
+        pattern: match
+      }
+    }
+
+    /* If the match is an object and have the property list */
+    if (typeof match === "object" && match.list) {
+      match = {
+        type: "CATEGORY",
+        category: match.name,
+        pattern: match.list
+      }
+    }
+
+    var filter = {
+      name: name,
+      match: match,
+      options: options,
+      index: this.filterIndex++
+    };
+
+    this._filters.push(filter);
+    this._populateFilter(filter);
+    this._renderShadow();
+  },
+
+  removeFilter: function(name) {
+    if (!this._filters || !this._filters) {
+      return;
+    }
+
+    var filters = Polymer.dom(this.$.filters);
+
+    if (!name) {
+      /* Remove all filters */
+      while (filters.firstChild) {
+        filters.removeChild(filters.firstChild);
+      }
+      this._filters = [];
+      this._renderShadow();
+      return;
+    }
+
+    /* Look for the filter in the list of filters and remove from the
+     * list of filters if found. */
+    var filter = null;
+    for (var i = 0; !filter && i < this._filters.length; i++) {
+      if (this._filters[i].name != name) {
+        continue;
+      }
+
+      filter = this._filters.splice(i, 1)[0];
+    }
+
+    if (!filter) {
+      return;
+    }
+
+     /* If the name matches, delete all items in the #filter container
+      * that were added for this filter */
+    var matches = filters.querySelectorAll('[pattern="' + filter.index + '"]');
+    Array.prototype.forEach.call(matches, function(el) {
+      filters.removeChild(el);
+    });
+
+    this._renderShadow();
+  },
+
+  /* Create all of the DIV elements that match the declared filter */
+  _populateFilter: function(filter) {
+    /* Delete all elements in the filter */
+    var filters = Polymer.dom(this.$.filters),
+      matches = filters.querySelectorAll('[pattern="' + filter.index + '"]');
+    Array.prototype.forEach.call(matches, function(el) {
+      filters.removeChild(el);
+    }, this);
+
+    if (!this._svg) {
+      return;
+    }
+
+
+    var potentials = [];
+    /* Walk the list of items in the SVG that match the BV_ prefix
+     * and compare them to the filter pattern; if it is a match,
+     * create a <DIV> in the filter layer */
+    this._svgElements.forEach(function(svgItem) {
+      /* Lookup the refdes in the _boardData */
+      var item = this.findComponent(svgItem.refdes),
+        match = false,
+        isPin = item && item.type == "pin";
+
+      /* If the match type is not ALL then only match items of the
+       * appropriate type.
+       *
+       * An item that doesn't exist in the board.json is excluded from
+       * type specific filters.
+       */
+      if ((filter.match.type != "ALL") &&
+        (!item ||
+         (filter.match.type == "PIN" && !isPin) ||
+         (filter.match.type == "COMPONENT" && isPin))) {
+        return;
+      }
+
+      switch (filter.match.type) {
+      case "ALL":
+      case "PIN":
+      case "COMPONENT":
+        /* If the pattern is *, then this is a match */
+        match |= filter.match.pattern == '*';
+
+        /* Check the REFDES against the pattern */
+        match |= svgItem.refdes.toUpperCase() === filter.match.pattern.toUpperCase();
+
+        /* Check the KEYWORDS agsint the pattern */
+        if (item && item.keywords) {
+          for (var i = 0; !match && i < item.keywords.length; i++) {
+            match |= item.keywords[i].toUpperCase() === filter.match.pattern.toUpperCase();
+          }
+        }
+        break;
+
+      case "LIST":
+      case "CATEGORY":
+        /* With LIST, filter.set is an array of REFDES or KEYWORDs to
+         * match against */
+        for (var i = 0; i < filter.match.pattern.length; i++) {
+          /* Check the REFDES against the set entry */
+          match |= svgItem.refdes.toUpperCase() === filter.match.pattern[i].toUpperCase();
+
+          /* Check the KEYWORDS agsint the set entry */
+          if (item && item.keywords) {
+            for (var j = 0; !match && j < item.keywords.length; j++) {
+              match |= item.keywords[j].toUpperCase() === filter.match.pattern[i].toUpperCase();
+            }
+          }
+          if (match) {
+            break;
+          }
+        }
+        break;
+      }
+
+      if (!match) {
+        return;
+      }
+
+      potentials.push({ svgItem: svgItem, item: item});
+    }, this);
+
+    potentials.forEach(function(potential) {
+      var item = potential.item,
+          svgItem = potential.svgItem,
+          isPin = item.type == "pin";
+      /* Create a DIV for this item */
+      var div = document.createElement('div');
+      div.setAttribute('refdes', item.refdes);
+
+      /* Add related list of items to an aattibute within the div */
+      if (item.related) {
+        div.setAttribute('related', item.related.join());
+      }
+
+      /* Add connected list of items to an aattibute within the div */
+      if (item.connected) {
+        div.setAttribute('connected', item.connected.join());
+      }
+
+      div.setAttribute("pattern", filter.index);
+
+      /* If this is a pin, set the 'pin' attribute so the z-index
+       * goes above components */
+      if (isPin) {
+        div.setAttribute("pin", true);
+      }
+
+      /* The hover class sets opacity to 100% when .hover is
+       * active on the element and it is set as `interactive`
+       * otherwise set to 'bright' for full opacity */
+      if (filter.options.interactive) {
+        /* If the user zooms in and then tabs to an offscreen item, the
+         * UX scrolls the item into view, but disrupts all scaling... not
+         * sure why. For now, we don't allow keyboard navigation */
+/*        div.setAttribute("tabindex", "0"); */
+        div.classList.add('interactive');
+      }
+
+      /* If alwaysVisible is set, the opacity is set to 50%
+      * when the item is not active */
+      if (filter.options.alwaysVisible) {
+        div.classList.add('alwaysVisible');
+      }
+
+      var rect = svgItem.rect;
+
+      div.style.color = filter.options.color;
+      div.style.top = rect.top;
+      div.style.left = rect.left;
+      div.style.width = rect.width;
+      div.style.height = rect.height;
+      div.addEventListener('mouseover', this._onFilterOver.bind(this));
+      div.addEventListener('mouseout', this._onFilterOut.bind(this));
+      div.addEventListener('tap', this._onFilterTap.bind(this));
+
+      Polymer.dom(this.$.filters).appendChild(div);
+    }, this);
+
+    Polymer.dom.flush();
+    this.updateStyles();
+  },
+
+
+  /** Toggles an item in or out of the selected group. If control is not
+   * pressed, the group is set to just the tapped item. */
+  _onFilterTap: function(event) {
+    console.log("_onFilterTap");
+    this.$.viewer.focus();
+    /* Look up the item in the boardData */
+    var item = this.findComponent(event.currentTarget.getAttribute('refdes'));
+    if (!item) {
+      console.log("Tap received for non filter item");
+      return;
+    }
+
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    /* Look the item up in the selected list */
+    var index = this.selected.indexOf(item.refdes);
+
+    /* If Control is pressed, toggle the state of this item in the
+     * selected group */
+    if (this.multiSelectActive) {
+      if (index == -1) {
+        this.push("selected", item.refdes);
+      } else {
+        this.splice("selected", index, 1);
+      }
+    } else {
+      /* Set selected to just this item */
+      this.selected = [ item.refdes ];
+    }
+
+    this._onSelectedChanged(this.selected);
+
+    this.fire('item-tap', { refdes: event.currentTarget.getAttribute('refdes'), event: event });
+  },
+
+  getFilteredItems: function(filterName) {
+    var filter = null, fiteredItems = [];
+    for (var i = 0; !filter && i < this._filters.length; i++) {
+      if (this._filters[i].name != filterName) {
+        continue;
+      }
+      filter = this._filters[i];
+    }
+    if (filter == null) {
+      return new Error('Filter with name: "' + filterName + '" was not found.')
+    }
+    var filters = Polymer.dom(this.$.filters),
+    matches = filters.querySelectorAll('[pattern="' + filter.index + '"]');
+    matches.forEach(function(item) {
+      fiteredItems.push(item.getAttribute('refdes'));
+    });
+
+    return fiteredItems;
+  },
+
+  findFilterForItem: function(item) {
+    var filterIndex = event.currentTarget.getAttribute("pattern");
+    if (!filterIndex) {
+      return null;
+    }
+
+    for (var i = 0; i < this._filters.length; i++) {
+      if (this._filters[i].index == filterIndex) {
+        return this._filters[i].name;
+      }
+    }
+    return null;
+  },
+
+  setHover: function(info) {
+    /* If no hover info is provided, remove all of the "hover" related
+     * filters. */
+    if (!info) {
+      var filters = [];
+      for (var i = 0; i < this._filters.length; i++) {
+        if (this._filters[i].name.indexOf("connected-") == 0 ||
+            this._filters[i].name.indexOf("highlight-") == 0 ||
+            this._filters[i].name.indexOf("related-") == 0) {
+          filters.push(this._filters[i].name);
+        }
+      }
+      filters.forEach(function(name) {
+        this.removeFilter(name);
+      }.bind(this));
+      return;
+    }
+
+    Array.prototype.forEach.call(this.$.filters.querySelectorAll('[refdes="'+info.refdes+'"]'),
+      function(item) {
+      item.classList.toggle("hover", info.in);
+    });
+
+    if (info.type == "category") {
+      var category = this.findCategory(info.refdes);
+      if (info.in == true) {
+        this.addFilter("highlight-" + category.slug, category, {
+          color: "#00ffff",
+          alwaysVisible: true,
+          interactive: false
+        });
+      } else {
+        this.removeFilter("highlight-" + category.slug);
+      }
+      return;
+    }
+
+    var item = this.findComponent(info.refdes);
+    if (!item) {
+      var index = this.keywords.indexOf(info.refdes);
+      if (index == -1) {
+        console.log(info.refdes + " not found for board " + this.board);
+        return;
+      }
+      item = {
+        refdes: info.refdes,
+        type: "keyword"
+      };
+    }
+
+    /* Turn the highlight for this item on or off based on direction */
+    if (info.in == true) {
+      this.addFilter("highlight-" + item.refdes, item.refdes, {
+        color: "#00ffff",
+        alwaysVisible: true,
+        interactive: false
+      });
+      switch (item.type) {
+        case "pin":
+        case "component":
+          if (item.connected) {
+            this.addFilter("connected-" + item.refdes, item.connected, {
+              color: "#ff8000",
+              alwaysVisible: true,
+              interactive: false
+            });
+          }
+          if (item.related) {
+            this.addFilter("related-" + item.refdes, item.related, {
+              color: "#00ff00",
+              alwaysVisible: true,
+              interactive: false
+            });
+          }
+          break;
+          case "keyword":
+            /* When a keyword is trying to be highlighted, we need to check
+            all the components and get its connections. */
+            var connections = this.getConnectedElementsByKeyword(item.refdes);
+            /* If we get some connections in the array then add the filter,
+            and highlight the connected components related to the keyword. */
+            if (connections) {
+              this.addFilter("connected-" + item.refdes, connections, {
+                color: "#ff8000",
+                alwaysVisible: true,
+                interactive: false
+              });
+            }
+          break;
+      }
+    } else {
+      this.removeFilter("highlight-" + item.refdes);
+      switch (item.type) {
+      case "pin":
+      case "component":
+      case "keyword":
+        this.removeFilter("connected-" + item.refdes);
+        this.removeFilter("related-" + item.refdes);
+        break;
+      }
+    }
+
+    info.type = item.type;
+
+    // Fire the hover action.
+    this.fire('item-hover', info);
+  },
+
+  _onFilterOver: function(event) {
+    console.log("_onFilterOver");
+
+    this.setHover({
+      refdes: event.currentTarget.getAttribute("refdes"),
+      in: true,
+      source: "board-viewer"
+    });
+  },
+
+  _onFilterOut: function(event) {
+    console.log("_onFilterOut");
+    this.setHover({
+      refdes: event.currentTarget.getAttribute('refdes'),
+      in: false,
+      source: "board-viewer"
+    });
+  },
+
+  resize: function() {
+    this.debounce("resize", function() {
+      if (!this._svg) {
+        return;
+      }
+
+      Polymer.dom.flush();
+      this.updateStyles();
+
+      if (!this.pixelsInMm) {
+        /* Get the width value in pixels from the 1mm div. */
+        this.pixelsInMm = Number(window.getComputedStyle(this.$.dpi).width.replace('px', ''));
+      }
+
+      var bb = this._svg.getBBox();
+
+      /* Compare aspect ratio of the board with the aspect ratio of the
+       * viewport and set the scale based on the best-fit */
+      if (bb.width / bb.height > this.offsetWidth / this.offsetHeight) {
+        /* Board is wider-angle than the viewport, so use width as best-fit */
+        this.fitScale = this.defaultScale * this.offsetWidth / bb.width;
+      } else {
+        /* Board is narrower-angle than the viewport, so use height as best-fit */
+        this.fitScale = this.defaultScale * this.offsetHeight / bb.height;
+      }
+
+      this.realScale = 1 / this.pixelsInMm; /* "real size" */
+      this.fitScale *= this.realScale; /* Convert from pixels to real units */
+
+      /* Smallest size is either what it takes to fit the entire board, or
+       * real size */
+      this.minScale = Math.min(this.realScale, this.fitScale);
+
+      if (this._firstResize || !this.disableAutoResize) {
+        /* Largest size is 3x real size */
+        this.maxScale = this.realScale * 3;
+
+        this.scale = this.fitScale;
+
+        this._translate.x = this.offsetWidth * 0.5;
+        this._translate.y = this.offsetHeight * 0.5;
+
+        this._firstResize = false;
+      }
+
+      /* Translate before zoom; zoom will recaluclate the filter div dimensions
+       * from the transformed SVG, including the _translate */
+      this._onBoardMove(this._translate.x, this._translate.y);
+      this._onBoardZoom(this._svg, this.scale);
+
+    }, 100);
+  },
+
+  _mapSvgToBoardData: function(svg, _boardData) {
+    if (!_boardData || !svg || svg.tagName.toLowerCase() != 'svg') {
+      console.log('SVG or _boardData not set. Not mapping.')
+      return;
+    }
+
+    console.log('Mapping SVG to _boardData.');
+
+    /* Delete any 'title' elements to keep hover tooltips from showing up */
+    Array.prototype.forEach.call(svg.querySelectorAll('title'), function(el) {
+      el.parentNode.removeChild(el);
+    });
+
+    var missing = [];
+    /* Scan _boardData for all of the items named in the SVG --
+     * reporting to console for any missing elements. */
+    this._svgElements.forEach(function(svgItem) {
+      var parts = svgItem.refdes.split("Pin"),
+        isPin = parts.length == 2,
+        component = this.findComponent(parts[0]),
+        pin = isPin ? this.findComponent(svgItem.refdes) : false;
+
+      if (!component) {
+        /* Add the component to the _boardData */
+        console.log('Component ' + parts[0] + ' not found in '
+          + this._board + '/board.json');
+        component = {
+          type: "component",
+          refdes: parts[0],
+          name: parts[0],
+          description: 'No description provided.'
+        };
+
+        this._boardData.push(component);
+        missing.push(component);
+      }
+
+      if (isPin && !pin) {
+        console.log('Pin ' + parts[1] + ' not found under ' + parts[0]
+            + ' for ' + this._board + '/board.json');
+        pin = {
+          type: "pin",
+          refdes: svgItem.refdes,
+          name: svgItem.refdes,
+          component: component.refdes,
+          description: 'No description provided.'
+        };
+
+        if (!component.pins) {
+          component.pins = [];
+        }
+        component.pins.push(pin);
+      }
+    }, this);
+
+    /* Fire off a resize */
+    this.resize();
+
+    if (missing.length) {
+      var board = {};
+      missing = missing.sort(function(a, b) {
+        return a.refdes.localeCompare(b.refdes);
+      });
+      missing.forEach(function(item) {
+        if (item.component in board) {
+          console.log("Duplicate component: " + item.refdes);
+          return;
+        }
+        board[item.refdes] = item;
+        delete item.name;
+        delete item.description;
+        delete item.type;
+        delete item.refdes;
+        if (item.pins) {
+          var pins = item.pins;
+          item.pins = {};
+          pins.forEach(function(pin) {
+            var parts = pin.refdes.toUpperCase().split("PIN");
+            if (parts[1] in item.pins) {
+              console.log("Duplicate pin: " + item.refdes);
+              return;
+            }
+            item.pins[parts[1]] = pin;
+            delete pin.name;
+            delete pin.description;
+            delete pin.type;
+            delete pin.refdes;
+            delete pin.component;
+          });
+        }
+      });
+      console.log("Missing items:\n" + JSON.stringify(board, null, 2));
+    }
+
+    this._calculateSVGElements();
+    this._filters.forEach(this._populateFilter, this);
+    this._renderShadow();
+  },
+
+  _calculateSelectedBounds: function() {
+    var containerRect = this.$.container.getBoundingClientRect(),
+      bounds = null, holes = this.$.filters.querySelectorAll("div.interactive.alwaysVisible");
+
+    for (var i = 0; i < holes.length; i++) {
+      var rect = {
+        left: holes[i].offsetLeft - holes[i].offsetWidth * 0.5,
+        top: holes[i].offsetTop - holes[i].offsetHeight * 0.5,
+        width: holes[i].offsetWidth,
+        height: holes[i].offsetHeight
+      };
+      rect.right = rect.left + rect.width;
+      rect.bottom = rect.top + rect.height;
+
+      if (i == 0) {
+        bounds = rect;
+      } else {
+        if (rect.left < bounds.left) {
+          bounds.left = rect.left;
+        }
+        if (rect.right > bounds.right) {
+          bounds.right = rect.right;
+        }
+        if (rect.top < bounds.top) {
+          bounds.top = rect.top;
+        }
+        if (rect.bottom > bounds.bottom) {
+          bounds.bottom = rect.bottom;
+        }
+        bounds.width = bounds.right - bounds.left;
+        bounds.height = bounds.bottom - bounds.top;
+      }
+    }
+
+    if (!bounds) {
+      bounds = {
+        left: 0,
+        top: 0,
+        width: containerRect.width,
+        height: containerRect.height
+      };
+    }
+
+    bounds.left /= this.scale;
+    bounds.top /= this.scale;
+    bounds.width /= this.scale;
+    bounds.height /= this.scale;
+
+    /* Compare aspect ratio of the selection with the aspect ratio of the
+     * viewport and set the scale based on the best-fit */
+    var newScale;
+    if (bounds.width / bounds.height > this.offsetWidth / this.offsetHeight) {
+      /* Board is wider-angle than the viewport, so use width as best-fit */
+      newScale = this.defaultScale * this.offsetWidth / bounds.width;
+    } else {
+      /* Board is narrower-angle than the viewport, so use height as best-fit */
+      newScale = this.defaultScale * this.offsetHeight / bounds.height;
+    }
+    this.maxScale = Math.max(newScale, this.realScale * 3.0);
+    this.selectionScale = newScale;
+    this.bounds = bounds;
+  },
+
+  _renderShadow: function() {
+    this.debounce("render-shadow", function() {
+      var filters = Polymer.dom(this.$.filters),
+        holes = [],
+        canvas = this.$.shadow,
+        ctx = canvas.getContext("2d"),
+        width = this.clientWidth,
+        height = this.clientHeight;
+
+      /* Render a hole anywhere there is a div in the filters */
+      holes = this.$.filters.querySelectorAll("div");
+
+      if (this.multiSelectActive || !this.selected || !this.selected.length || this.disableShadow) {
+        this.$.shadow.classList.add("hidden");
+        return;
+      }
+
+      canvas.setAttribute("width", width);
+      canvas.setAttribute("height", height);
+
+      this.$.shadow.classList.remove("hidden");
+
+      var offset = this.getBoundingClientRect(),
+        canvasRect = canvas.getBoundingClientRect(),
+        svgRect = this.$.svg.getBoundingClientRect();
+      ctx.save();
+      /* Clear the shadow to dark gray */
+      ctx.fillStyle = 'rgba(20,20,20,1)';
+      ctx.fillRect(0, 0, canvasRect.width, canvasRect.height);
+
+      /* Only draw where the target isn't 0; this will keep shadowsBlur
+       * from drawing over cleared regions from other elements */
+      ctx.globalCompositeOperation = "source-atop";
+
+      /* Translate to the center of the board, and offset for user translation */
+      ctx.translate(this._translate.x - canvasRect.width * 0.5,
+        this._translate.y - canvasRect.height * 0.5);
+
+      /* Enable the shadowBlur */
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = "yellow";
+
+      /* Set fill style to opaque to draw the shadow */
+      ctx.fillStyle = "rgba(0, 0, 0, 1)";
+
+      for (var i = 0; i < holes.length; i++) {
+        var rect = {
+          left: canvasRect.width * 0.5 + holes[i].offsetLeft - holes[i].offsetWidth * 0.5,
+          top: canvasRect.height * 0.5 + holes[i].offsetTop - holes[i].offsetHeight * 0.5,
+          width: holes[i].offsetWidth,
+          height: holes[i].offsetHeight
+        };
+
+        /* Draw the shadow */
+        ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
+
+        /* Clear the inside of the region */
+        ctx.clearRect(rect.left, rect.top, rect.width, rect.height);
+      }
+
+      ctx.restore();
+    });
+  },
+
+  getDocumentation: function(refdes, type, callback) {
+    if (!this.board) {
+      callback({
+        error: "No board loaded.",
+        status: 500
+      });
+    }
+
+    /* Adjust for optional parameters */
+
+    /* If type is not set, and refdes is set to HTML or MD,
+     * set type to refdes and clear refdes. */
+    if (!type) {
+      if (refdes == "HTML" || refdes == "MD") {
+        type = refdes;
+        refdes = undefined;
+      } else {
+        type = "MD"; /* Default to Markdown */
+      }
+    }
+
+    if (!callback) {
+      return;
+    }
+
+    var url = this.basePath + "boards/" + this.board + "/";
+    if (refdes) {
+      var item = this.findComponent(refdes);
+      if (item && item.markdown) {
+        url += "docs/" + item.markdown;
+      } else {
+        url += "docs/" + refdes + ".md";
+      }
+    } else {
+      url += "index.md";
+    }
+
+    var ironRequest = document.createElement('iron-request');
+    ironRequest.send({url: url}).then(function(request) {
+      var content;
+      try {
+        content = Mustache.render(request.response, item);
+
+        if (type && type == 'HTML') {
+          content = this.md.render(content);
+        }
+      } catch (_) {
+        callback({
+          error: "Unable to parse returned content.",
+          status: 500
+        });
+        return;
+      }
+
+      callback({
+        status: 200,
+        content: content
+      });
+    }.bind(this)).catch(function(error) {
+      callback({
+        error: "Unable to load documentation for " + refdes,
+        status: 400
+      });
+    });
+  },
+
+  getInfo: function(refdes) {
+    var item = this.findComponent(refdes);
+    if (item) {
+      return item;
+    }
+
+    /* No item found in the _boardData -- see if it exists in the
+     * _svgElements cache and return just a refdes if so, otherwise
+     * return null */
+    for (var i = 0; i < this._svgElements.length; i++) {
+      if (this._svgElements[i].refdes == refdes) {
+        return { refdes: refdes };
+      }
+    }
+
+    return null;
+  },
+
+  getBoards: function(callback) {
+    if (!callback) {
+      return;
+    }
+
+    this.$.boards.send({
+      url: this.basePath + "boards.json",
+      handleAs: "json"
+    }).then(function(request) {
+      var boards = request.response,
+        results = [];
+      if (!boards || !Array.isArray(boards)) {
+        return Promise.reject("boards.json did not return any boards.");
+      }
+      boards.forEach(function(board) {
+        results.push({
+          name: board.title,
+          directory: board.board,
+          image: board.board + '/' + board.image
+        });
+      })
+
+      results = results.sort(function(a, b) {
+        return a.name.localeCompare(b.name);
+      });
+
+      callback(results);
+    }.bind(this)).catch(function(error) {
+      console.log("Unable to load boards.json");
+      callback(new Error(error));
+    });
+  },
+
+  getKeywords: function() {
+    return this.keywords;
+  },
+
+  getComponents: function() {
+    return this.components;
+  },
+
+  getConnectedElementsByKeyword: function(keyword) {
+    var components = this._boardData;
+    var connections = [];
+    for (var i = 0; i < components.length; i++) {
+      /* Add all those components that have the item.refdes within the,
+      keywords array. */
+      if (components[i].keywords
+        && components[i].keywords.indexOf(keyword) != -1
+        && components[i].connected.length >= 1) {
+        connections = connections.concat(components[i].connected);
+      }
+      /* Add all those pins that have the item.refdes within the,
+      keywords array. */
+      var pins = components[i].pins;
+      if (pins != undefined) {
+        for (var j = 0; j < pins.length; j++) {
+          if (pins[j].keywords
+            && pins[j].keywords.indexOf(keyword) != -1
+            && pins[j].connected.length >= 1) {
+            connections = connections.concat(pins[j].connected);
+          }
+        }
+      }
+    }
+    return connections;
+  },
+
+  attached: function() {
+    this.md = window.markdownit({
+      html: false,
+      xhtmlout: false,
+      breaks: false
+    });
+
+    var meta = navigator.platform.substr(0, 3).toUpperCase() == 'MAC';
+
+    document.addEventListener('keydown', function(event) {
+      this.multiSelectActive = meta ? event.metaKey : event.ctrlKey;
+    }.bind(this));
+
+    document.addEventListener('keyup', function(event) {
+      this.multiSelectActive = meta ? event.metaKey : event.ctrlKey;
+    }.bind(this));
+
+    if (this.hasAttribute("board")) {
+      this.loadBoard(this.getAttribute("board"));
+      this.$.viewer.focus();
+    }
+  }
+});
+</script>

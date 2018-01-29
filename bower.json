@@ -1,0 +1,27 @@
+{
+  "name": "board-viewer",
+  "description": "Interactive hardware board viewer",
+  "main": "board-viewer.html",
+  "dependencies": {
+    "polymer": "Polymer/polymer#^1.0.0",
+    "iron-ajax": "PolymerElements/iron-ajax",
+    "iron-resizable-behavior": "PolymerElements/iron-resizable-behavior",
+    "iron-a11y-keys-behavior": "PolymerElements/iron-a11y-keys-behavior",
+    "es6-shim": "^0.35.3",
+    "markdown-it": "^8.3.1",
+    "paper-slider": "PolymerElements/paper-slider",
+    "iron-icons": "PolymerElements/iron-icons",
+    "iron-flex-layout": "PolymerElements/iron-flex-layout",
+    "mustache.js": "mustache#^2.3.0",
+    "paper-button": "PolymerElements/paper-button"
+  },
+  "devDependencies": {
+    "iron-component-page": "PolymerElements/iron-component-page",
+    "iron-demo-helpers": "PolymerElements/iron-demo-helpers",
+    "web-component-tester": "^6.0.0-prerelease.5",
+    "webcomponentsjs": "webcomponents/webcomponentsjs#^0.7.0"
+  },
+  "resolutions": {
+    "webcomponentsjs": "^0.7.0"
+  }
+}
